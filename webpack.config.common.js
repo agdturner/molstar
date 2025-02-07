@@ -42,6 +42,8 @@ const sharedConfig = {
         new CopyWebpackPlugin({
             patterns: [
                 { from: 'lib/apps/viewer/icons', to: 'icons' },
+                { from: 'lib/apps/viewer/manifest.webmanifest', to: '' },
+                { from: 'lib/apps/viewer/sw.js', to: '' },
             ],
         }),
         new ExtraWatchWebpackPlugin({
