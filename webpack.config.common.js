@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const webpack = require('webpack');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 const ExtraWatchWebpackPlugin = require('extra-watch-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const VERSION = require('./package.json').version;
@@ -38,6 +39,11 @@ const sharedConfig = {
         ]
     },
     plugins: [
+        new CopyWebpackPlugin({
+            patterns: [
+                { from: 'lib/apps/viewer/icons', to: 'icons' },
+            ],
+        }),
         new ExtraWatchWebpackPlugin({
             files: [
                 './lib/**/*.scss',

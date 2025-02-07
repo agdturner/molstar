@@ -15,3 +15,4 @@ module.exports = [
     ...examples.map(createExample),
     ...tests.map(createBrowserTest)
 ];
+
