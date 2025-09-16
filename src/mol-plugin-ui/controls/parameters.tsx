@@ -30,6 +30,7 @@ import { legendFor } from './legend';
 import { LineGraphComponent } from './line-graph/line-graph-component';
 import { Slider, Slider2 } from './slider';
 import { getColorGradient, getColorGradientBanded } from '../../mol-util/color/utils';
+import { Data, SimpleData, readFile, readJSONFile } from '../../extensions/ribocode/colors';
 
 export type ParameterControlsCategoryFilter = string | null | (string | null)[]
 
@@ -818,9 +819,22 @@ export class OffsetColorListControl extends React.PureComponent<ParamProps<PD.Co
         this.update({ kind: preset.type !== 'qualitative' ? 'interpolate' : 'set', colors: preset.list });
     };
 
+    /**
+     * Handles changes to the color parameters.
+     * 
+     * @param {Object} param - The parameter object.
+     * @param {any} param.value - The new value of the color parameters.
+     */
     colorsChanged: ParamOnChange = ({ value }) => {
         const colors = (value as (typeof _colorListHelpers)['OffsetColorsParam']['defaultValue']).map(c => [c.color, c.offset] as [Color, number]);
+        
+        // Sort the colors by their offsets
         colors.sort((a, b) => a[1] - b[1]);
+
+        // Log the color changes to the console
+        console.log('Colors changed:', colors);
+
+        // Update the component state with the new kind and sorted colors
         this.update({ kind: this.props.value.kind, colors });
     };
 
@@ -1396,6 +1410,58 @@ class ObjectListItem extends React.PureComponent<ObjectListItemProps, { isExpand
 export class ObjectListControl extends React.PureComponent<ParamProps<PD.ObjectList>, { isExpanded: boolean }> {
     state = { isExpanded: false };
 
+    constructor(props: ParamProps<PD.ObjectList>) {
+        super(props);
+        this.state = { isExpanded: false };
+        this.handleFileInputChange = this.handleFileInputChange.bind(this);
+    }
+
+    async handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        try {
+            // Read and parse the file to populate colorMap.
+            const colorMap = new Map<string, string>();
+            const fileExtension = file.name.split('.').pop()?.toLowerCase();
+            if (fileExtension === 'json') {
+                let data: SimpleData[] = await readJSONFile(file);
+                data.forEach(x => {
+                    colorMap.set(x.pdb_chain, x.color);
+                });
+                console.log('Simple data:', data);
+            } else {
+                let data: Data[] = await readFile(file);
+                data.forEach(x => {
+                    colorMap.set(x.pdb_chain, x.color);
+                });
+                //console.log('Data:', data);
+            }
+            //console.log('Color map:', colorMap);
+            // Transform the colorMap into an array and save to JSON file
+            const colorMapArray = Array.from(colorMap.entries()).map(([pdb_chain, color]) => ({
+                pdb_chain,
+                color: color
+            }));
+            const output = JSON.stringify(colorMapArray, null, 2);
+            const blob = new Blob([output], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'color_list.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            // Transform the map into an array of objects
+            const colorList = Array.from(colorMap.entries()).map(([asym_id, color]) => ({
+                asym_id,
+                color: Color.fromHexStyle(color)
+            }));
+            // Update the state with the new colors
+            this.props.onChange({ name: this.props.name, param: this.props.param, value: colorList });
+        } catch (error) {
+            console.error('Error reading color file:', error);
+        }
+    }
+    
     change(value: any) {
         this.props.onChange({ name: this.props.name, param: this.props.param, value });
     }
@@ -1430,6 +1496,10 @@ export class ObjectListControl extends React.PureComponent<ParamProps<PD.ObjectL
                 if (i !== j) update.push(xs[j]);
             }
             this.change(update);
+        },
+        removeAll: () => {
+            const update: object[] = [];
+            this.change(update);
         }
     };
 
@@ -1442,15 +1512,50 @@ export class ObjectListControl extends React.PureComponent<ParamProps<PD.ObjectL
         const v = this.props.value;
         const label = this.props.param.label || camelCaseToWords(this.props.name);
         const value = `${v.length} item${v.length !== 1 ? 's' : ''}`;
-        return <>
-            <ControlRow label={label} control={<button onClick={this.toggleExpanded} disabled={this.props.isDisabled}>{value}</button>} />
-            {this.state.isExpanded && <div className='msp-control-offset'>
-                {this.props.value.map((v, i) => <ObjectListItem key={i} param={this.props.param} value={v} index={i} actions={this.actions} isDisabled={this.props.isDisabled} />)}
-                <ControlGroup header='New Item'>
-                    <ObjectListEditor params={this.props.param.element} apply={this.add} value={this.props.param.ctor()} isDisabled={this.props.isDisabled} />
-                </ControlGroup>
-            </div>}
-        </>;
+        // return <>
+        //     <ControlRow label={label} control={<button onClick={this.toggleExpanded} disabled={this.props.isDisabled}>{value}</button>} />
+        //     {this.state.isExpanded && <div className='msp-control-offset'>
+        //         {this.props.value.map((v, i) => <ObjectListItem key={i} param={this.props.param} value={v} index={i} actions={this.actions} isDisabled={this.props.isDisabled} />)}
+        //         <ControlGroup header='New Item'>
+        //             <ObjectListEditor params={this.props.param.element} apply={this.add} value={this.props.param.ctor()} isDisabled={this.props.isDisabled} />
+        //         </ControlGroup>
+        //     </div>}
+        // </>;
+        return (
+            <>
+                <ControlRow
+                    label={label}
+                    control={
+                        <button onClick={this.toggleExpanded} disabled={this.props.isDisabled}>
+                            {value}
+                        </button>
+                    }
+                />
+                {this.state.isExpanded && (
+                    <div className='msp-control-offset'>
+                        {this.props.value.map((v, i) => (
+                            <ObjectListItem
+                                key={i}
+                                param={this.props.param}
+                                value={v}
+                                index={i}
+                                actions={this.actions}
+                                isDisabled={this.props.isDisabled}
+                            />
+                        ))}
+                        <ControlGroup header='New Item'>
+                            <ObjectListEditor
+                                params={this.props.param.element}
+                                apply={this.add}
+                                value={this.props.param.ctor()}
+                                isDisabled={this.props.isDisabled}
+                            />
+                        </ControlGroup>
+                        <input type="file" onChange={this.handleFileInputChange} />
+                    </div>
+                )}
+            </>
+        );
     }
 }
 
