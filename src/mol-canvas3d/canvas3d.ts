@@ -52,6 +52,7 @@ import { Ray3D } from '../mol-math/geometry/primitives/ray3d';
 import { RayHelper } from './helper/ray-helper';
 import { produce } from '../mol-util/produce';
 import { ShaderManager } from './helper/shader-manager';
+import { toFixed } from '../mol-util/number';
 
 export const CameraFogParams = {
     intensity: PD.Numeric(15, { min: 1, max: 100, step: 1 }),
@@ -123,6 +124,9 @@ export const DefaultCanvas3DAttribs = {
     xr: DefaultXRManagerAttribs,
 };
 export type Canvas3DAttribs = typeof DefaultCanvas3DAttribs
+export type PartialCanvas3DAttribs = {
+    [K in keyof Canvas3DAttribs]?: Canvas3DAttribs[K] extends { name: string, params: any } ? Canvas3DAttribs[K] : Partial<Canvas3DAttribs[K]>
+}
 
 export { Canvas3DContext };
 
@@ -372,6 +376,7 @@ interface Canvas3D {
     readonly boundingSphere: Readonly<Sphere3D>
     readonly boundingSphereVisible: Readonly<Sphere3D>
     setProps(props: PartialCanvas3DProps | ((old: Canvas3DProps) => Partial<Canvas3DProps> | void), doNotRequestDraw?: boolean /* = false */): void
+    setAttribs(attribs: PartialCanvas3DAttribs): void
     getImagePass(props: Partial<ImageProps>): ImagePass
     getRenderObjects(): GraphicsRenderObject[]
 
@@ -431,7 +436,10 @@ namespace Canvas3D {
         let currentTime = 0;
 
         updateViewport();
-        const scene = Scene.create(webgl, passes.draw.transparency);
+        const scene = Scene.create(webgl, passes.draw.transparency, {
+            dColorMarker: p.renderer.colorMarker,
+            dLightCount: p.renderer.light?.length,
+        });
 
         function getSceneRadius() {
             return scene.boundingSphere.radius * p.sceneRadiusFactor;
@@ -511,7 +519,7 @@ namespace Canvas3D {
             }
         }
 
-        const xrManager = new XRManager(webgl, input, scene, camera, stereoCamera, helper.pointer, interactionHelper);
+        const xrManager = new XRManager(webgl, input, scene, camera, stereoCamera, helper.pointer, interactionHelper, p.xr, a.xr);
 
         const xr = {
             request: async () => {
@@ -939,25 +947,42 @@ namespace Canvas3D {
                 instanceCount: r.values.instanceCount.ref.value,
                 materialId: r.materialId,
                 renderItemId: r.id,
+                geometryType: r.values.dGeometryType.ref.value,
+                'byteCount [MiB]': toFixed(r.getByteCount() / 1024 / 1024, 3),
             }));
 
             console.groupCollapsed(`${items.length} RenderItems`);
 
-            if (items.length < 50) {
+            if (items.length <= 64) {
                 console.table(items);
             } else {
                 console.log(items);
             }
             console.log(JSON.stringify(webgl.stats, undefined, 4));
 
-            const { texture, attribute, elements } = webgl.resources.getByteCounts();
+            const { texture, cubeTexture, attribute, elements, pixelPack, renderbuffer } = webgl.resources.getByteCounts();
             console.log(JSON.stringify({
                 texture: `${(texture / 1024 / 1024).toFixed(3)} MiB`,
+                cubeTexture: `${(cubeTexture / 1024 / 1024).toFixed(3)} MiB`,
                 attribute: `${(attribute / 1024 / 1024).toFixed(3)} MiB`,
                 elements: `${(elements / 1024 / 1024).toFixed(3)} MiB`,
+                pixelPack: `${(pixelPack / 1024 / 1024).toFixed(3)} MiB`,
+                renderbuffer: `${(renderbuffer / 1024 / 1024).toFixed(3)} MiB`,
             }, undefined, 4));
 
-            console.log(JSON.stringify(webgl.timer.formatedStats(), undefined, 4));
+            console.log(JSON.stringify({
+                renderables: `${(scene.renderables.reduce((sum, r) => sum + r.getByteCount(), 0) / 1024 / 1024).toFixed(3)} MiB`,
+                passes: {
+                    draw: `${(passes.draw.getByteCount() / 1024 / 1024).toFixed(3)} MiB`,
+                    illumination: `${(passes.illumination.getByteCount() / 1024 / 1024).toFixed(3)} MiB`,
+                    pick: `${(passes.pick.getByteCount() / 1024 / 1024).toFixed(3)} MiB`,
+                    hiZ: `${(hiZ.getByteCount() / 1024 / 1024).toFixed(3)} MiB`,
+                }
+            }, undefined, 4));
+
+            if (isTimingMode) {
+                console.log(JSON.stringify(webgl.timer.formatedStats(), undefined, 4));
+            }
 
             console.groupEnd();
         }
@@ -1314,7 +1339,13 @@ namespace Canvas3D {
                 if (props.illumination) Object.assign(p.illumination, props.illumination);
                 if (props.multiSample) Object.assign(p.multiSample, props.multiSample);
                 if (props.hiZ) hiZ.setProps(props.hiZ);
-                if (props.renderer) renderer.setProps(props.renderer);
+                if (props.renderer) {
+                    scene.setGlobals({
+                        dColorMarker: props.renderer.colorMarker ?? renderer.props.colorMarker,
+                        dLightCount: props.renderer.light?.length ?? renderer.props.light.length,
+                    });
+                    renderer.setProps(props.renderer);
+                }
                 if (props.trackball) controls.setProps(props.trackball);
                 if (props.interaction) interactionHelper.setProps(props.interaction);
                 if (props.debug) helper.debug.setProps(props.debug);
@@ -1331,8 +1362,12 @@ namespace Canvas3D {
                     requestDraw();
                 }
             },
+            setAttribs: (attribs: PartialCanvas3DAttribs) => {
+                if (attribs.trackball) controls.setAttribs(attribs.trackball);
+                if (attribs.xr) xrManager.setAttribs(attribs.xr);
+            },
             getImagePass: (props: Partial<ImageProps> = {}) => {
-                return new ImagePass(webgl, assetManager, renderer, scene, camera, helper, passes.draw.transparency, props);
+                return new ImagePass(webgl, assetManager, renderer, scene, camera, helper, props);
             },
             getRenderObjects(): GraphicsRenderObject[] {
                 const renderObjects: GraphicsRenderObject[] = [];
@@ -1344,7 +1379,10 @@ namespace Canvas3D {
                 return getProps();
             },
             get attribs() {
-                return a;
+                return {
+                    trackball: controls.attribs,
+                    xr: xrManager.attribs,
+                };
             },
             get input() {
                 return input;

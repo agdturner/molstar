@@ -14,7 +14,7 @@ import { PluginConfig } from '../mol-plugin/config';
 import { ParamDefinition as PD } from '../mol-util/param-definition';
 import { PluginUIComponent } from './base';
 import { Button, ControlGroup, IconButton } from './controls/common';
-import { AutorenewSvg, BuildOutlinedSvg, CameraOutlinedSvg, CloseSvg, FullscreenSvg, TuneSvg, HeadsetVRSvg } from './controls/icons';
+import { AspectRatioSvg, AutorenewSvg, BuildOutlinedSvg, CameraOutlinedSvg, CloseSvg, FullscreenSvg, HeadsetVRSvg, TuneSvg } from './controls/icons';
 import { ToggleSelectionModeButton } from './structure/selection';
 import { ViewportCanvas } from './viewport/canvas';
 import { DownloadScreenshotControls } from './viewport/screenshot';
@@ -59,7 +59,20 @@ export class ViewportControls extends PluginUIComponent<ViewportControlsProps, V
     };
 
     toggleExpanded = () => {
-        PluginCommands.Layout.Update(this.plugin, { state: { isExpanded: !this.plugin.layout.state.isExpanded } });
+        PluginCommands.Layout.Update(this.plugin, {
+            state: {
+                isExpanded: !this.plugin.layout.state.isExpanded,
+                expandToFullscreen: false
+            }
+        });
+    };
+
+    toggleFullscreen = () => {
+        PluginCommands.Layout.Update(this.plugin, {
+            state: {
+                expandToFullscreen: !this.plugin.layout.state.expandToFullscreen,
+            }
+        });
     };
 
     toggleXR = () => {
@@ -101,11 +114,18 @@ export class ViewportControls extends PluginUIComponent<ViewportControlsProps, V
         }
     }
 
-    icon(icon: React.FC, onClick: (e: React.MouseEvent<HTMLButtonElement>) => void, title: string, isOn = true) {
-        return <IconButton svg={icon} toggleState={isOn} onClick={onClick} title={title} style={{ background: 'transparent' }} />;
+    icon(icon: React.FC, onClick: (e: React.MouseEvent<HTMLButtonElement>) => void, title: string, isOn = true, disabled = false) {
+        return <IconButton svg={icon} toggleState={isOn} onClick={onClick} title={title} style={{ background: 'transparent' }} disabled={disabled} />;
     }
 
     render() {
+        const showXr = this.plugin.config.get(PluginConfig.Viewport.ShowXR);
+        const xrIsSupported = !!this.plugin.canvas3d?.xr.isSupported.value;
+        const xrIsPresenting = !!this.plugin.canvas3d?.xr.isPresenting.value;
+        const xr = showXr === 'always' || (showXr === 'auto' && xrIsSupported);
+        const xrTitle = !xrIsSupported ? 'Augmented/Virtual Reality unavailable' : (xrIsPresenting ? 'Exit XR' : 'Enter XR');
+        const layoutState = this.plugin.layout.state;
+
         return <div className={'msp-viewport-controls'}>
             <div className='msp-viewport-controls-buttons'>
                 {this.plugin.config.get(PluginConfig.Viewport.ShowReset) &&
@@ -141,9 +161,24 @@ export class ViewportControls extends PluginUIComponent<ViewportControlsProps, V
                 <div>
                     <div className='msp-semi-transparent-background' />
                     {this.plugin.config.get(PluginConfig.Viewport.ShowControls) && this.icon(BuildOutlinedSvg, this.toggleControls, 'Toggle Controls Panel', this.plugin.layout.state.showControls)}
-                    {this.plugin.config.get(PluginConfig.Viewport.ShowExpand) && this.icon(FullscreenSvg, this.toggleExpanded, 'Toggle Expanded Viewport', this.plugin.layout.state.isExpanded)}
+                    {this.plugin.config.get(PluginConfig.Viewport.ShowExpand) && <div className='msp-hover-box-wrapper'>
+                        {this.icon(FullscreenSvg, this.toggleExpanded, 'Toggle Expanded Viewport', this.plugin.layout.state.isExpanded)}
+                        <div className='msp-hover-box-body'>
+                            <div className='msp-flex-column'>
+                                <div className='msp-flex-row'>
+                                    <Button onClick={this.toggleFullscreen}>
+                                        {layoutState.expandToFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                        <div className='msp-hover-box-spacer'></div>
+                    </div>}
+                    {!this.plugin.config.get(PluginConfig.Viewport.ShowExpand)
+                        && this.plugin.config.get(PluginConfig.Viewport.ShowToggleFullscreen)
+                        && this.icon(AspectRatioSvg, this.toggleFullscreen, 'Toggle Full Screen', this.plugin.layout.state.expandToFullscreen)}
                     {this.plugin.config.get(PluginConfig.Viewport.ShowSettings) && this.icon(TuneSvg, this.toggleSettingsExpanded, 'Settings / Controls Info', this.state.isSettingsExpanded)}
-                    {this.plugin.config.get(PluginConfig.Viewport.ShowXR) && this.plugin.canvas3d?.xr.isSupported.value && this.icon(HeadsetVRSvg, this.toggleXR, 'XR', this.plugin.canvas3d?.xr.isPresenting.value ?? false)}
+                    {xr && this.icon(HeadsetVRSvg, this.toggleXR, xrTitle, xrIsPresenting, !xrIsSupported)}
                 </div>
                 {this.plugin.config.get(PluginConfig.Viewport.ShowSelectionMode) && <div>
                     <div className='msp-semi-transparent-background' />

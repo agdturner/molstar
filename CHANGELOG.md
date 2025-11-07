@@ -4,6 +4,52 @@ All notable changes to this project will be documented in this file, following t
 Note that since we don't clearly distinguish between a public and private interfaces there will be changes in non-major versions that are potentially breaking. If we make breaking changes to less used interfaces we will highlight it in here.
 
 ## [Unreleased]
+
+- Fix ugly camera clipping in snapshot transitions
+
+## [v5.3.0] - 2025-11-5
+- Update loading message in MVS Stories Viewer
+- Add `Canvas3D.setAttribs`
+- Fix `normalizeWheel` "spin" calculation fallback
+- MolViewSpec
+  - Add support for "topology" formats (TOP, PRMTOP, PSF)
+  - Add support for additional "coordiates" formats (NCTRAJ, DCD, TRR)
+  - Fix coarse structure selection
+  - Fix missing default param values in `primitives_from_uri`
+
+## [v5.2.0] - 2025-10-31
+- Handle transparency updates on ImagePass
+- Fix CIF parser edge case when the last token is escaped
+- MolViewSpec
+  - Fix tooltips persisting across snapshots
+  - Fix CIF annotations with no selector columns being ignored
+  - Fix trackpad lock when camera up parallel to direction
+  - Add clipping support for primitives
+  - Support near camera distance
+
+## [v5.1.2] - 2025-10-25
+- Fix createColorScaleByType when offsets are available
+- Get bond orders from non-standard CONECT records in PDB files
+- Remove outdated `gl_FrontFacing` workaround for buggy drivers
+- Fix clip objects for direct-volume rendering
+- Support "magic window" style AR (via WebXR)
+- Fix `PluginState.getStateTransitionFrameIndex`
+- Update `GlycamSaccharideNames` and `Monosaccharides` in `carbohydrates/constants.ts`
+- Support custom ref resolvers in `State`
+- Add full-screen mode support to layout manager
+  - Add `show-toggle-fullscreen` URL param option to Viewer app
+- MolViewSpec
+  - Support accessing Mol* State nodes by MVS-provided ref
+  - Add support for DX map format
+  - Better support for coarse structures in MVS:
+    - Support for MVS annotations on coarse structures (color_from_*, tooltip_from_*)
+    - Support for MVS labels on coarse structures (label, label_from_*)
+    - (Other things already worked on coarse structures before: tooltip, color,component, primitives, component_from_*, primitives_from_*)
+  - Tidy up MVS builder:
+    - Add `sphere` and `angle` methods
+    - [Breaking] Rename builder method primitives_from_uri -> primitivesFromUri
+
+## [v5.0.0] - 2025-09-28
 - [Breaking] Renamed some color schemes ('inferno' -> 'inferno-no-black', 'magma' -> 'magma-no-black', 'turbo' -> 'turbo-no-black', 'rainbow' -> 'simple-rainbow')
 - [Breaking] `Box3D.nearestIntersectionWithRay` -> `Ray3D.intersectBox3D`
 - [Breaking] `Plane3D.distanceToSpher3D` -> `distanceToSphere3D` (fix spelling)
@@ -115,7 +161,7 @@ Note that since we don't clearly distinguish between a public and private interf
     - Add `PointerHelper` for rendering XR input devices
     - Add XR button to Viewer and Mesoscale Explorer
     - Add XR button to render-structure in tests/browser
-- Fix illumination denoising with transparency on transparent background 
+- Fix illumination denoising with transparency on transparent background
 - Change the `to_mmCIF` function parameter from `structure` to `structures` to support either a single structure or an array of structures
 - ModelServer and VolumeServer: add configurable robots.txt
 - Adaptive parallel shader compilation
@@ -124,6 +170,7 @@ Note that since we don't clearly distinguish between a public and private interf
         - Use of `KHR_parallel_shader_compile` extension when available to check status
     - Add `ShaderManager` to compile shaders based on `Canvas3D` params and `Scene` content
     - Draw `Scene` only when shaders are ready
+- Fix incorrect animation loop handling in the screenshot code
 
 ## [v4.18.0] - 2025-06-08
 - MolViewSpec extension:

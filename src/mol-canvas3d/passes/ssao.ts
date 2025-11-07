@@ -87,8 +87,6 @@ export class SsaoPass {
         return scene.opacityAverage < 1 && scene.transparencyMin < props.transparentThreshold;
     }
 
-    readonly target: RenderTarget;
-
     private readonly framebuffer: Framebuffer;
     private readonly blurFirstPassFramebuffer: Framebuffer;
     private readonly blurSecondPassFramebuffer: Framebuffer;
@@ -212,6 +210,20 @@ export class SsaoPass {
         this.renderable = getSsaoRenderable(webgl, depthTexture, this.depthHalfTargetOpaque.texture, this.depthQuarterTargetOpaque.texture, transparentDepthTexture, this.depthHalfTargetTransparent.texture, this.depthQuarterTargetTransparent.texture);
         this.blurFirstPassRenderable = getSsaoBlurRenderable(webgl, this.ssaoDepthTransparentTexture, 'horizontal');
         this.blurSecondPassRenderable = getSsaoBlurRenderable(webgl, this.depthBlurProxyTexture, 'vertical');
+    }
+
+    getByteCount() {
+        return (
+            this.downsampledDepthTargetOpaque.getByteCount() +
+            this.depthHalfTargetOpaque.getByteCount() +
+            this.depthQuarterTargetOpaque.getByteCount() +
+            this.downsampledDepthTargetTransparent.getByteCount() +
+            this.depthHalfTargetTransparent.getByteCount() +
+            this.depthQuarterTargetTransparent.getByteCount() +
+            this.ssaoDepthTexture.getByteCount() +
+            this.ssaoDepthTransparentTexture.getByteCount() +
+            this.depthBlurProxyTexture.getByteCount()
+        );
     }
 
     setSize(width: number, height: number) {

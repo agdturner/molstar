@@ -12,7 +12,7 @@ import { Mat4 } from '../../mol-math/linear-algebra/3d/mat4';
 import { Camera, ICamera } from '../camera';
 import { PointerHelper } from './pointer-helper';
 import { Vec2 } from '../../mol-math/linear-algebra/3d/vec2';
-import { ButtonsType, InputObserver, TrackedPointerInput } from '../../mol-util/input/input-observer';
+import { ButtonsType, InputObserver, ScreenTouchInput, TrackedPointerInput } from '../../mol-util/input/input-observer';
 import { Plane3D } from '../../mol-math/geometry/primitives/plane3d';
 import { Vec4 } from '../../mol-math/linear-algebra/3d/vec4';
 import { StereoCamera } from '../camera/stereo';
@@ -90,9 +90,14 @@ export class XRManager {
     private hit: Vec3 | undefined = undefined;
 
     readonly props: XRManagerProps;
+    readonly attribs: XRManagerAttribs;
 
     setProps(props: Partial<XRManagerProps>) {
         Object.assign(this.props, props);
+    }
+
+    setAttribs(attribs: Partial<XRManagerAttribs>) {
+        Object.assign(this.attribs, attribs);
     }
 
     private intersect(camera: ICamera, view: Mat4, plane: Plane3D, targetRayPose: XRPose): { point: Vec3, screen: Vec2 } | undefined {
@@ -160,9 +165,22 @@ export class XRManager {
         const points: Vec3[] = [];
 
         const trackedPointers: TrackedPointerInput[] = [];
+        const screenTouches: ScreenTouchInput[] = [];
 
         if (xrSession.inputSources) {
             for (const inputSource of xrSession.inputSources) {
+                if (inputSource.targetRayMode === 'screen') {
+                    if (inputSource.gamepad) {
+                        const { axes } = inputSource.gamepad;
+                        const { width, height } = camLeft.viewport;
+                        const x = ((axes[0] + 1) / 2) * width;
+                        const y = ((axes[1] + 1) / 2) * height;
+                        const ray = camLeft.getRay(Ray3D(), x, height - y);
+                        screenTouches.push({ x, y, ray });
+                    }
+                    continue;
+                }
+
                 if (inputSource.targetRayMode !== 'tracked-pointer') continue;
 
                 const { handedness, targetRaySpace, gamepad } = inputSource;
@@ -219,6 +237,8 @@ export class XRManager {
         }
 
         input.updateTrackedPointers(trackedPointers);
+        input.updateScreenTouches(screenTouches);
+
         pointerHelper.ensureEnabled();
         pointerHelper.update(pointers, points, this.hit);
 
@@ -295,6 +315,7 @@ export class XRManager {
 
     constructor(private webgl: WebGLContext, private input: InputObserver, private scene: Scene, private camera: Camera, private stereoCamera: StereoCamera, private pointerHelper: PointerHelper, private interactionHelper: Canvas3dInteractionHelper, props: Partial<XRManagerProps> = {}, attribs: Partial<XRManagerAttribs> = {}) {
         this.props = { ...PD.getDefaultValues(XRManagerParams), ...props };
+        this.attribs = { ...DefaultXRManagerAttribs, ...attribs };
 
         this.hoverSub = this.interactionHelper.events.hover.subscribe(({ position }) => {
             this.hit = position;
@@ -308,9 +329,9 @@ export class XRManager {
         this.checkSupported();
         navigator.xr?.addEventListener('devicechange', this.checkSupported);
 
-        const b = { ...DefaultXRManagerBindings, ...attribs.bindings };
-
         this.keyUpSub = input.keyUp.subscribe(({ code, modifiers, key }) => {
+            const b = this.attribs.bindings;
+
             if (Binding.matchKey(b.exit, code, modifiers, key)) {
                 this.end();
             }
@@ -321,6 +342,8 @@ export class XRManager {
         });
 
         this.gestureSub = input.gesture.subscribe(({ scale, button, modifiers }) => {
+            const b = this.attribs.bindings;
+
             if (Binding.match(b.gestureScale, button, modifiers)) {
                 this.setScaleFactor(scale);
             }

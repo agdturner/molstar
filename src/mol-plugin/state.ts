@@ -89,7 +89,13 @@ class PluginState extends PluginComponent {
         if (snapshot.behaviour) await this.plugin.runTask(this.behaviors.setSnapshot(snapshot.behaviour));
         if (snapshot.data) await this.plugin.runTask(this.data.setSnapshot(snapshot.data));
         if (snapshot.canvas3d?.props) {
-            const settings = PD.normalizeParams(Canvas3DParams, snapshot.canvas3d.props, 'children');
+            const settings: Partial<Canvas3DProps> = PD.normalizeParams(Canvas3DParams, snapshot.canvas3d.props, 'children');
+            if (snapshot.camera?.current || snapshot.camera?.focus) {
+                // Avoid multiple camera transitions (creates ugly cases when camera in old and new snapshot is the same)
+                settings.camera = undefined;
+                settings.cameraClipping = undefined;
+                settings.cameraFog = undefined;
+            }
             await PluginCommands.Canvas3D.SetSettings(this.plugin, { settings });
         }
         if (snapshot.canvas3dContext?.props) {
@@ -307,7 +313,7 @@ namespace PluginState {
 
     export function getStateTransitionFrameIndex(snapshot: Snapshot, timestamp: number): number | undefined {
         const { transition } = snapshot;
-        if (!transition) return undefined;
+        if (!transition?.frames.length) return undefined;
 
         let t = timestamp;
         if (transition.loop) {
@@ -315,6 +321,7 @@ namespace PluginState {
         }
 
         let currentDuration = 0;
+        if (t <= transition.frames[0].durationInMs) return 0;
         for (let i = 0; i < transition.frames.length; i++) {
             if (currentDuration >= t) return i;
             const frame = transition.frames[i];
