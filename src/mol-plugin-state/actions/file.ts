@@ -14,12 +14,16 @@ import { unzip } from '../../mol-util/zip/zip';
 import { PluginStateObject } from '../objects';
 
 async function processFile(file: Asset.File, plugin: PluginContext, format: string, visuals: boolean) {
+    console.log('processFile called:', file.file?.name, 'Format:', format, 'Visuals:', visuals);
     const info = getFileNameInfo(file.file?.name ?? '');
     const isBinary = plugin.dataFormats.binaryExtensions.has(info.ext);
+    console.log('File info:', info, 'Is binary:', isBinary);
     const { data } = await plugin.builders.data.readFile({ file, isBinary });
+    console.log('data:', data);
     const provider = format === 'auto'
         ? plugin.dataFormats.auto(info, data.cell?.obj!)
         : plugin.dataFormats.get(format);
+    console.log('Provider selected:', provider);
 
     if (!provider) {
         plugin.log.warn(`OpenFiles: could not find data provider for '${info.ext}'`);
@@ -28,9 +32,39 @@ async function processFile(file: Asset.File, plugin: PluginContext, format: stri
     }
 
     // need to await so that the enclosing Task finishes after the update is done.
+    console.log('Parsing file...');
     const parsed = await provider.parse(plugin, data);
+    console.log('parsed:', parsed);
+
+    if (parsed.trajectory) {
+        console.log('Parsed trajectory:', parsed.trajectory);
+        console.log('Trajectory obj:', parsed.trajectory?.obj);
+        console.log('Trajectory data:', parsed.trajectory?.obj?.data);
+        if (parsed.trajectory && parsed.trajectory.obj && parsed.trajectory.obj.data) {
+            console.log('Checking trajectory frames...');
+            const frames = parsed.trajectory.obj?.data?.frames;
+            if (frames && frames.length > 0) {
+                console.log('Frames found in trajectory:', frames.length);
+                const frame = frames[0];
+                console.log('Frame:', frame);
+                const representative = parsed.trajectory.obj.data.representative;
+                console.log('Representative:', representative);
+                console.log('keys:', Object.keys(representative));
+                console.log('Representative atomicHierarchy:', representative.atomicHierarchy);
+                console.log('atoms:', representative.atomicHierarchy.atoms);
+
+            } else {
+                console.log('No frames found in trajectory.');
+            }
+        }
+    } else {
+        console.log('No trajectory parsed from file.');
+    }
+    console.log('...file parsed:', parsed);
     if (visuals) {
+        console.log('Adding visuals...');
         await provider.visuals?.(plugin, parsed);
+        console.log('...visuals added.');
     }
 };
 
@@ -49,6 +83,7 @@ export const OpenFiles = StateAction.build({
         };
     }
 })(({ params, state }, plugin: PluginContext) => Task.create('Open Files', async taskCtx => {
+    console.log('OpenFiles action started', params);
     plugin.behaviors.layout.leftPanelTabName.next('data');
 
     await state.transaction(async () => {
@@ -58,6 +93,7 @@ export const OpenFiles = StateAction.build({
         }
 
         for (const file of params.files) {
+            console.log('Processing file:', file.name);
             try {
                 if (file.file && file.name.toLowerCase().endsWith('.zip')) {
                     const zippedFiles = await unzip(taskCtx, await file.file.arrayBuffer());

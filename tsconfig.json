@@ -1,7 +1,8 @@
 {
     "compilerOptions": {
-        "declaration": true,
-        "target": "es2018",
+        "composite": true, // Required for project references
+        "declaration": true, // Required when "composite" is true
+        "target": "es2018",//"target": "es6", // "target": "es2018",
         "alwaysStrict": true,
         "noImplicitAny": true,
         "noImplicitThis": true,
@@ -9,7 +10,7 @@
         "noUnusedLocals": true,
         "strictNullChecks": true,
         "strictFunctionTypes": true,
-        "module": "esnext",
+        "module": "esnext",//"module": "commonjs", // "module": "esnext",
         "esModuleInterop": true,
         "moduleResolution": "node",
         "isolatedModules": true,
@@ -22,7 +23,7 @@
         "outDir": "lib"
     },
     "include": [ "src/**/*" ],
-    "exclude": [ "src/**/_spec/*" ],
+    "exclude": [ "node_modules", "lib", "src/**/_spec/*" ],
     "tsc-alias": {
         "resolveFullPaths": true,
         "verbose": true

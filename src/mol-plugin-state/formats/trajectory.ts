@@ -35,17 +35,58 @@ export const MmcifProvider: TrajectoryFormatProvider = {
         return false;
     },
     parse: async (plugin, data, params) => {
+        console.log('MmcifProvider.parse called');
         const state = plugin.state.data;
+        console.log('Building state tree for data:', data);
         const cif = state.build().to(data)
             .apply(StateTransforms.Data.ParseCif, void 0, { state: { isGhost: true } });
+        console.log('cif state built:', cif);
+        console.log('Applying TrajectoryFromMmCif transform');
         const trajectory = await cif
             .apply(StateTransforms.Model.TrajectoryFromMmCif, void 0, { tags: params?.trajectoryTags })
             .commit({ revertOnError: true });
+        // Step 1: Get the cell from the state using trajectory.ref
+        const trajCell = plugin.state.data.cells.get(trajectory.ref);
 
+        // Step 2: Inspect the cell and its data
+        console.log('trajCell:', trajCell);
+        console.log('trajCell.obj:', trajCell?.obj);
+        if (trajCell?.obj?.data) {
+            console.log('trajCell.obj.data:', trajCell?.obj?.data);
+            // Step 3: Try to access the first model and its coordinates
+            // Inspect the first frame and representative
+            console.log('First frame:', trajCell.obj.data.frames[0]);
+            console.log('Representative:', trajCell.obj.data.representative);
+
+            // Try to access coordinates in the first frame
+            const frame = trajCell.obj.data.frames[0];
+            if (frame) {
+                // Check for atomicConformation property
+                console.log('atomicConformation:', frame.atomicConformation);
+
+                if (frame.atomicConformation) {
+                    const x = Array.from(frame.atomicConformation.x);
+                    const y = Array.from(frame.atomicConformation.y);
+                    const z = Array.from(frame.atomicConformation.z);
+                    console.log('Atom coordinates:', { x, y, z });
+                } else {
+                    // Log all keys to help discover coordinate storage
+                    console.log('Frame keys:', Object.keys(frame));
+                }
+            } else {
+                console.log('No frame data found.');
+            }
+        } else {
+            console.log('trajCell or trajCell.obj.data is undefined.');
+        }
+
+        console.log('TrajectoryFromMmCif applied, trajectory:', trajectory);
+        // Logging coordinates
+        //...
+        console.log('MmcifProvider.parse completed');
         if ((cif.selector.cell?.obj?.data.blocks.length || 0) > 1) {
             plugin.state.data.updateCellState(cif.ref, { isGhost: false });
         }
-
         return { trajectory };
     },
     visuals: defaultVisuals
