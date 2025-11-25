@@ -11,6 +11,8 @@ import { guessCifVariant, DataFormatProvider } from './provider';
 import { StateTransformer, StateObjectRef } from '../../mol-state';
 import { PluginStateObject } from '../objects';
 import { PluginContext } from '../../mol-plugin/context';
+import { Vec3 } from '../../mol-math/linear-algebra';
+import { computeCentroid } from '../../extensions/ribocode/utils/geometry';
 
 export interface TrajectoryFormatProvider<P extends { trajectoryTags?: string | string[] } = { trajectoryTags?: string | string[] }, R extends { trajectory: StateObjectRef<PluginStateObject.Molecule.Trajectory> } = { trajectory: StateObjectRef<PluginStateObject.Molecule.Trajectory> }>
     extends DataFormatProvider<P, R> {
@@ -69,6 +71,32 @@ export const MmcifProvider: TrajectoryFormatProvider = {
                     const y = Array.from(frame.atomicConformation.y);
                     const z = Array.from(frame.atomicConformation.z);
                     console.log('Atom coordinates:', { x, y, z });
+
+                    // 1. Build Vec3 array from x, y, z
+                    const coords: Vec3[] = [];
+                    for (let i = 0; i < frame.atomicConformation.x.length; i++) {
+                        const v = Object.assign([x[i], y[i], z[i]], { '@type': 'vec3' }) as Vec3;
+                        coords.push(v);
+                    }
+
+                    // 2. Compute centroid
+                    const centroid = computeCentroid(coords);
+
+                    // 3. Centralize coordinates
+                    const newX = new Float32Array(coords.length);
+                    const newY = new Float32Array(coords.length);
+                    const newZ = new Float32Array(coords.length);
+
+                    for (let i = 0; i < coords.length; i++) {
+                        newX[i] = coords[i][0] - centroid[0];
+                        newY[i] = coords[i][1] - centroid[1];
+                        newZ[i] = coords[i][2] - centroid[2];
+                    }
+
+                    // 4. Replace coordinates
+                    frame.atomicConformation.x = newX;
+                    frame.atomicConformation.y = newY;
+                    frame.atomicConformation.z = newZ;
                 } else {
                     // Log all keys to help discover coordinate storage
                     console.log('Frame keys:', Object.keys(frame));
