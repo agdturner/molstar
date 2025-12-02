@@ -24,8 +24,15 @@ function defaultVisuals(plugin: PluginContext, data: { trajectory: StateObjectRe
     return plugin.builders.structure.hierarchy.applyPreset(data.trajectory, 'default');
 }
 
-export const MmcifProvider: TrajectoryFormatProvider = {
-    label: 'mmCIF',
+export interface MmcifParseParams {
+    trajectoryTags?: string | string[];
+    centraliseCoordinates?: boolean;
+    alignmentData?: any;
+}
+
+export const MmcifProvider: TrajectoryFormatProvider<MmcifParseParams> = {
+//export const MmcifProvider: MmcifParseParams = {
+        label: 'mmCIF',
     description: 'mmCIF',
     category: TrajectoryFormatCategory,
     stringExtensions: ['cif', 'mmcif', 'mcif'],
@@ -36,8 +43,9 @@ export const MmcifProvider: TrajectoryFormatProvider = {
         if (info.ext === 'cif' || info.ext === 'bcif') return guessCifVariant(info, data) === -1;
         return false;
     },
-    parse: async (plugin, data, params) => {
-        console.log('MmcifProvider.parse called');
+    //parse: async (plugin, data, params) => {
+    parse: async (plugin, data, params?: MmcifParseParams) => {
+            console.log('MmcifProvider.parse called');
         const state = plugin.state.data;
         console.log('Building state tree for data:', data);
         const cif = state.build().to(data)
@@ -47,70 +55,71 @@ export const MmcifProvider: TrajectoryFormatProvider = {
         const trajectory = await cif
             .apply(StateTransforms.Model.TrajectoryFromMmCif, void 0, { tags: params?.trajectoryTags })
             .commit({ revertOnError: true });
-        // Step 1: Get the cell from the state using trajectory.ref
-        const trajCell = plugin.state.data.cells.get(trajectory.ref);
-
-        // Step 2: Inspect the cell and its data
-        console.log('trajCell:', trajCell);
-        console.log('trajCell.obj:', trajCell?.obj);
-        if (trajCell?.obj?.data) {
-            console.log('trajCell.obj.data:', trajCell?.obj?.data);
-            // Step 3: Try to access the first model and its coordinates
-            // Inspect the first frame and representative
-            console.log('First frame:', trajCell.obj.data.frames[0]);
-            console.log('Representative:', trajCell.obj.data.representative);
-
-            // Try to access coordinates in the first frame
-            const frame = trajCell.obj.data.frames[0];
-            if (frame) {
-                // Check for atomicConformation property
-                console.log('atomicConformation:', frame.atomicConformation);
-
-                if (frame.atomicConformation) {
-                    const x = Array.from(frame.atomicConformation.x);
-                    const y = Array.from(frame.atomicConformation.y);
-                    const z = Array.from(frame.atomicConformation.z);
-                    console.log('Atom coordinates:', { x, y, z });
-
-                    // 1. Build Vec3 array from x, y, z
-                    const coords: Vec3[] = [];
-                    for (let i = 0; i < frame.atomicConformation.x.length; i++) {
-                        const v = Object.assign([x[i], y[i], z[i]], { '@type': 'vec3' }) as Vec3;
-                        coords.push(v);
+        if (params?.centraliseCoordinates === true) {
+            console.log('Centralising coordinates');
+            // Centralise coordinates logic
+            // Step 1: Get the cell from the state using trajectory.ref
+            const trajCell = plugin.state.data.cells.get(trajectory.ref);
+            // Step 2: Inspect the cell and its data
+            console.log('trajCell:', trajCell);
+            console.log('trajCell.obj:', trajCell?.obj);
+            if (trajCell?.obj?.data) {
+                console.log('trajCell.obj.data:', trajCell?.obj?.data);
+                // Step 3: Try to access the first model and its coordinates
+                // Inspect the first frame and representative
+                console.log('First frame:', trajCell.obj.data.frames[0]);
+                console.log('Representative:', trajCell.obj.data.representative);
+                // Try to access coordinates in the first frame
+                const frame = trajCell.obj.data.frames[0];
+                if (frame) {
+                    // Check for atomicConformation property
+                    console.log('atomicConformation:', frame.atomicConformation);
+                    if (frame.atomicConformation) {
+                        const x = Array.from(frame.atomicConformation.x);
+                        const y = Array.from(frame.atomicConformation.y);
+                        const z = Array.from(frame.atomicConformation.z);
+                        console.log('Atom coordinates:', { x, y, z });
+                        // 1. Build Vec3 array from x, y, z
+                        const coords: Vec3[] = [];
+                        for (let i = 0; i < frame.atomicConformation.x.length; i++) {
+                            const v = Object.assign([x[i], y[i], z[i]], { '@type': 'vec3' }) as Vec3;
+                            coords.push(v);
+                        }
+                        // 2. Compute centroid
+                        const centroid = computeCentroid(coords);
+                        // 3. Centralize coordinates
+                        const newX = new Float32Array(coords.length);
+                        const newY = new Float32Array(coords.length);
+                        const newZ = new Float32Array(coords.length);
+                        for (let i = 0; i < coords.length; i++) {
+                            newX[i] = coords[i][0] - centroid[0];
+                            newY[i] = coords[i][1] - centroid[1];
+                            newZ[i] = coords[i][2] - centroid[2];
+                        }
+                        if (params?.alignmentData) {
+                            // Use alignmentData for alignment logic
+                            console.log('Alignment data provided:', params.alignmentData);
+                        } else {
+                            console.log('No alignment data provided.');
+                        }
+                        // 4. Replace coordinates
+                        frame.atomicConformation.x = newX;
+                        frame.atomicConformation.y = newY;
+                        frame.atomicConformation.z = newZ;
+                    } else {
+                        // Log all keys to help discover coordinate storage
+                        console.log('Frame keys:', Object.keys(frame));
                     }
-
-                    // 2. Compute centroid
-                    const centroid = computeCentroid(coords);
-
-                    // 3. Centralize coordinates
-                    const newX = new Float32Array(coords.length);
-                    const newY = new Float32Array(coords.length);
-                    const newZ = new Float32Array(coords.length);
-
-                    for (let i = 0; i < coords.length; i++) {
-                        newX[i] = coords[i][0] - centroid[0];
-                        newY[i] = coords[i][1] - centroid[1];
-                        newZ[i] = coords[i][2] - centroid[2];
-                    }
-
-                    // 4. Replace coordinates
-                    frame.atomicConformation.x = newX;
-                    frame.atomicConformation.y = newY;
-                    frame.atomicConformation.z = newZ;
                 } else {
-                    // Log all keys to help discover coordinate storage
-                    console.log('Frame keys:', Object.keys(frame));
+                    console.log('No frame data found.');
                 }
             } else {
-                console.log('No frame data found.');
+                console.log('trajCell or trajCell.obj.data is undefined.');
             }
         } else {
-            console.log('trajCell or trajCell.obj.data is undefined.');
+            console.log('Centralise coordinates not requested.');
         }
-
         console.log('TrajectoryFromMmCif applied, trajectory:', trajectory);
-        // Logging coordinates
-        //...
         console.log('MmcifProvider.parse completed');
         if ((cif.selector.cell?.obj?.data.blocks.length || 0) > 1) {
             plugin.state.data.updateCellState(cif.ref, { isGhost: false });
