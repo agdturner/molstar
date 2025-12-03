@@ -6,6 +6,7 @@ import { PluginStateObject } from '../../../mol-plugin-state/objects';
 import { PluginContext } from '../../../mol-plugin/context';
 import { StateObjectRef } from '../../../mol-state';
 import { Vec3 } from '../../../mol-math/linear-algebra';
+//import { ElementSymbol } from '../../../mol-model/structure/model/types';
 
 // Function to load a molecule file.
 export async function loadMoleculeFileToViewer(
@@ -35,28 +36,40 @@ export async function loadMoleculeFileToViewer(
 
     await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'default');
     //return {structure};
-    const atomCoordinates = await getAtomCoordinates(plugin, trajectory);
-    return {structure, atomCoordinates};
+    const alignmentData = await getAlignmentData(plugin, trajectory);
+    return {structure, alignmentData};
 }
 
-// Function to load a molecule file.
-export async function getAtomCoordinates(plugin: PluginUIContext, trajectory: any) {
-    console.log('Extracting atom coordinates from trajectory');
+// Function to get alignment data for a molecule. This currently includes the type and location of all atoms in the structure.
+export async function getAlignmentData(plugin: PluginUIContext, trajectory: any) {
+    console.log('Extracting alignment data');
+    //let id : string[] = [];
     let x : Vec3[] = [];
     let y : Vec3[] = [];
     let z : Vec3[] = [];
+    let type : string[] = [];
     const trajCell = plugin.state.data.cells.get(trajectory.ref);
     if (trajCell?.obj?.data) {
         const frame = trajCell.obj.data.frames[0];
-        if (frame) {
-            if (frame.atomicConformation) {
-                x = Array.from(frame.atomicConformation.x);
-                y = Array.from(frame.atomicConformation.y);
-                z = Array.from(frame.atomicConformation.z);
-            }
+        console.log('Frame data:', frame);
+        // if (frame?.atomicHierarchy?.atoms?.id?.__array) {
+        //     id = frame.atomicHierarchy.atoms.id.__array as string[];
+        // }
+        if (frame?.atomicConformation?.x) {
+            x = Array.from(frame.atomicConformation.x);
         }
+        if (frame?.atomicConformation?.y) {
+            y = Array.from(frame.atomicConformation.y);
+        }
+        if (frame?.atomicConformation?.z) {
+            z = Array.from(frame.atomicConformation.z);
+        }
+        if (frame?.atomicHierarchy?.atoms?.type_symbol?.__array) {
+            type = frame.atomicHierarchy.atoms.type_symbol.__array as string[];
+        }        
     }
-    console.log('Atom coordinates extracted:', x.length, y.length, z.length);
-    return {x, y, z};
+    //console.log('Alignment data extracted:', id.length, x.length, y.length, z.length, type.length);
+    //return {id, x, y, z, type};
+    console.log('Alignment data extracted:', x.length, y.length, z.length, type.length);
+    return {x, y, z, type};
 }
-

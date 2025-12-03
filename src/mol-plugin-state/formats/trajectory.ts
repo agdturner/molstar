@@ -12,7 +12,7 @@ import { StateTransformer, StateObjectRef } from '../../mol-state';
 import { PluginStateObject } from '../objects';
 import { PluginContext } from '../../mol-plugin/context';
 import { Vec3 } from '../../mol-math/linear-algebra';
-import { computeCentroid } from '../../extensions/ribocode/utils/geometry';
+import { computeCentroid, alignDataset } from '../../extensions/ribocode/utils/geometry';
 
 export interface TrajectoryFormatProvider<P extends { trajectoryTags?: string | string[] } = { trajectoryTags?: string | string[] }, R extends { trajectory: StateObjectRef<PluginStateObject.Molecule.Trajectory> } = { trajectory: StateObjectRef<PluginStateObject.Molecule.Trajectory> }>
     extends DataFormatProvider<P, R> {
@@ -78,7 +78,8 @@ export const MmcifProvider: TrajectoryFormatProvider<MmcifParseParams> = {
                         const x = Array.from(frame.atomicConformation.x);
                         const y = Array.from(frame.atomicConformation.y);
                         const z = Array.from(frame.atomicConformation.z);
-                        console.log('Atom coordinates:', { x, y, z });
+                        const type_symbol = frame?.atomicHierarchy?.atoms?.type_symbol?.__array;
+                        console.log('Atom coordinates and type:', { x, y, z, type_symbol });
                         // 1. Build Vec3 array from x, y, z
                         const coords: Vec3[] = [];
                         for (let i = 0; i < frame.atomicConformation.x.length; i++) {
@@ -99,6 +100,7 @@ export const MmcifProvider: TrajectoryFormatProvider<MmcifParseParams> = {
                         if (params?.alignmentData) {
                             // Use alignmentData for alignment logic
                             console.log('Alignment data provided:', params.alignmentData);
+                            alignDataset(type_symbol, Array.from(newX), Array.from(newY), Array.from(newZ), params.alignmentData.type, params.alignmentData.x, params.alignmentData.y, params.alignmentData.z);
                         } else {
                             console.log('No alignment data provided.');
                         }
