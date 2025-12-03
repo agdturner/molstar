@@ -39,16 +39,16 @@
  */
 export class QCProt {
     // The quaternion components.
-    q1: number | undefined;
-    q2: number | undefined;
-    q3: number | undefined;
-    q4: number | undefined;
+    q1: number;
+    q2: number;
+    q3: number;
+    q4: number;
     // For storing the root mean squared error.
-    rmsd: number | undefined;
+    rmsd: number;
     // For storing the weighted root mean squared error.
-    wrmsd: number | undefined;
+    wrmsd: number;
     // For storing the rotation matrix.
-    rotmat: number[] | undefined;
+    rotmat: number[];
     // For storing the weights.
     weight: number[] | undefined;
     // The coordinates to be aligned.
@@ -59,10 +59,6 @@ export class QCProt {
     x: number[];
     y: number[];
     z: number[];
-    // The rotated coordinates.
-    newXr: number[] | undefined;
-    newYr: number[] | undefined;
-    newZr: number[] | undefined;
     // The number of points.
     len: number;
 
@@ -73,7 +69,7 @@ export class QCProt {
         x: number[],
         y: number[],
         z: number[]) {
-        this.rotmat = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        this.rotmat = [],
         this.newX = newX;
         this.newY = newY;
         this.newZ = newZ;
@@ -94,9 +90,9 @@ export class QCProt {
             let x = this.newX[i];
             let y = this.newY[i];
             let z = this.newZ[i];
-            let xRot = this.rotmat![0] * x + this.rotmat![1] * y + this.rotmat![2] * z;
-            let yRot = this.rotmat![3] * x + this.rotmat![4] * y + this.rotmat![5] * z;
-            let zRot = this.rotmat![6] * x + this.rotmat![7] * y + this.rotmat![8] * z;
+            let xRot = this.rotmat[0] * x + this.rotmat[1] * y + this.rotmat[2] * z;
+            let yRot = this.rotmat[3] * x + this.rotmat[4] * y + this.rotmat[5] * z;
+            let zRot = this.rotmat[6] * x + this.rotmat[7] * y + this.rotmat[8] * z;
             xR.push(xRot);
             yR.push(yRot);
             zR.push(zRot);
@@ -329,8 +325,8 @@ export class QCProt {
 
                     if (qsqr < evecprec) {
                         /* if qsqr is still too small, return the identity matrix. */
-                        this.rotmat![0] = this.rotmat![4] = this.rotmat![8] = 1.0;
-                        this.rotmat![1] = this.rotmat![2] = this.rotmat![3] = this.rotmat![5] = this.rotmat![6] = this.rotmat![7] = 0.0;
+                        this.rotmat[0] = this.rotmat[4] = this.rotmat[8] = 1.0;
+                        this.rotmat[1] = this.rotmat[2] = this.rotmat[3] = this.rotmat[5] = this.rotmat[6] = this.rotmat[7] = 0.0;
 
                         return 0;
                     }
@@ -356,15 +352,15 @@ export class QCProt {
         yz = this.q3 * this.q4;
         ax = this.q1 * this.q2;
 
-        this.rotmat![0] = a2 + x2 - y2 - z2;
-        this.rotmat![1] = 2 * (xy + az);
-        this.rotmat![2] = 2 * (zx - ay);
-        this.rotmat![3] = 2 * (xy - az);
-        this.rotmat![4] = a2 - x2 + y2 - z2;
-        this.rotmat![5] = 2 * (yz + ax);
-        this.rotmat![6] = 2 * (zx + ay);
-        this.rotmat![7] = 2 * (yz - ax);
-        this.rotmat![8] = a2 - x2 - y2 + z2;
+        this.rotmat[0] = a2 + x2 - y2 - z2;
+        this.rotmat[1] = 2 * (xy + az);
+        this.rotmat[2] = 2 * (zx - ay);
+        this.rotmat[3] = 2 * (xy - az);
+        this.rotmat[4] = a2 - x2 + y2 - z2;
+        this.rotmat[5] = 2 * (yz + ax);
+        this.rotmat[6] = 2 * (zx + ay);
+        this.rotmat[7] = 2 * (yz - ax);
+        this.rotmat[8] = a2 - x2 - y2 + z2;
 
         return 1;
     }

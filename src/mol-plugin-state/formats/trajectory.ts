@@ -31,8 +31,8 @@ export interface MmcifParseParams {
 }
 
 export const MmcifProvider: TrajectoryFormatProvider<MmcifParseParams> = {
-//export const MmcifProvider: MmcifParseParams = {
-        label: 'mmCIF',
+    //export const MmcifProvider: MmcifParseParams = {
+    label: 'mmCIF',
     description: 'mmCIF',
     category: TrajectoryFormatCategory,
     stringExtensions: ['cif', 'mmcif', 'mcif'],
@@ -45,7 +45,7 @@ export const MmcifProvider: TrajectoryFormatProvider<MmcifParseParams> = {
     },
     //parse: async (plugin, data, params) => {
     parse: async (plugin, data, params?: MmcifParseParams) => {
-            console.log('MmcifProvider.parse called');
+        console.log('MmcifProvider.parse called');
         const state = plugin.state.data;
         console.log('Building state tree for data:', data);
         const cif = state.build().to(data)
@@ -55,56 +55,81 @@ export const MmcifProvider: TrajectoryFormatProvider<MmcifParseParams> = {
         const trajectory = await cif
             .apply(StateTransforms.Model.TrajectoryFromMmCif, void 0, { tags: params?.trajectoryTags })
             .commit({ revertOnError: true });
-        if (params?.centraliseCoordinates === true) {
-            console.log('Centralising coordinates');
-            // Centralise coordinates logic
+        if (params?.centraliseCoordinates || params?.alignmentData) {
             // Step 1: Get the cell from the state using trajectory.ref
             const trajCell = plugin.state.data.cells.get(trajectory.ref);
             // Step 2: Inspect the cell and its data
             console.log('trajCell:', trajCell);
             console.log('trajCell.obj:', trajCell?.obj);
             if (trajCell?.obj?.data) {
-                console.log('trajCell.obj.data:', trajCell?.obj?.data);
-                // Step 3: Try to access the first model and its coordinates
+                //console.log('trajCell.obj.data:', trajCell?.obj?.data);
                 // Inspect the first frame and representative
-                console.log('First frame:', trajCell.obj.data.frames[0]);
-                console.log('Representative:', trajCell.obj.data.representative);
-                // Try to access coordinates in the first frame
+                const nframes = trajCell.obj.data.frames.length;
+                if (nframes === 0) {
+                    console.warn('No frames found in trajectory data.');
+                    return { trajectory };
+                } else if (nframes > 1) {
+                    console.warn(`Multiple frames (${nframes}) found in trajectory data. Centralisation/alignment will be applied only to the first frame.`);
+                }
+                //console.log('Representative:', trajCell.obj.data.representative);
                 const frame = trajCell.obj.data.frames[0];
                 if (frame) {
-                    // Check for atomicConformation property
-                    console.log('atomicConformation:', frame.atomicConformation);
-                    if (frame.atomicConformation) {
+                    //console.log('Frame data:', frame);
+                    if (frame.atomicConformation && frame.atomicHierarchy) {
+                        //console.log('atomicConformation:', frame.atomicConformation);
                         const x = Array.from(frame.atomicConformation.x);
                         const y = Array.from(frame.atomicConformation.y);
                         const z = Array.from(frame.atomicConformation.z);
-                        const type_symbol = frame?.atomicHierarchy?.atoms?.type_symbol?.__array;
-                        console.log('Atom coordinates and type:', { x, y, z, type_symbol });
-                        // 1. Build Vec3 array from x, y, z
-                        const coords: Vec3[] = [];
-                        for (let i = 0; i < frame.atomicConformation.x.length; i++) {
-                            const v = Object.assign([x[i], y[i], z[i]], { '@type': 'vec3' }) as Vec3;
-                            coords.push(v);
-                        }
-                        // 2. Compute centroid
-                        const centroid = computeCentroid(coords);
-                        // 3. Centralize coordinates
-                        const newX = new Float32Array(coords.length);
-                        const newY = new Float32Array(coords.length);
-                        const newZ = new Float32Array(coords.length);
-                        for (let i = 0; i < coords.length; i++) {
-                            newX[i] = coords[i][0] - centroid[0];
-                            newY[i] = coords[i][1] - centroid[1];
-                            newZ[i] = coords[i][2] - centroid[2];
-                        }
+                        //console.log('atomicHierarchy:', frame.atomicHierarchy);
+                        const type_symbol = frame.atomicHierarchy.atoms.type_symbol.__array;
+                        //console.log('Atom coordinates and type:', { x, y, z, type_symbol });
+                        const n = x.length;
+                        const d = Math.floor(n / 10);
+                        const newX: Float32Array = new Float32Array(n);
+                        const newY: Float32Array = new Float32Array(n);
+                        const newZ: Float32Array = new Float32Array(n);
                         if (params?.alignmentData) {
-                            // Use alignmentData for alignment logic
-                            console.log('Alignment data provided:', params.alignmentData);
-                            alignDataset(type_symbol, Array.from(newX), Array.from(newY), Array.from(newZ), params.alignmentData.type, params.alignmentData.x, params.alignmentData.y, params.alignmentData.z);
+                            // Use alignmentData to align the new coordinates
+                            //console.log('Alignment data provided:', params.alignmentData);
+                            const alignedCoordinates = alignDataset(type_symbol, Array.from(newX), Array.from(newY), Array.from(newZ), params.alignmentData.type, params.alignmentData.x, params.alignmentData.y, params.alignmentData.z);
+                            // Update newX, newY, newZ with aligned coordinates
+                            for (let i = 0; i < n; i++) {
+                                newX[i] = alignedCoordinates.alignedX[i];
+                                newY[i] = alignedCoordinates.alignedY[i];
+                                newZ[i] = alignedCoordinates.alignedZ[i];
+                                if (i % d === 0) {
+                                    console.log(`Aligned coordinates for atom ${i}: (${type_symbol[i]}, ${newX[i]}, ${newY[i]}, ${newZ[i]})`);
+                                }
+                            }
+                            console.log('Coordinates aligned using provided alignment data.');
                         } else {
                             console.log('No alignment data provided.');
+                            console.log('Centralising coordinates');
+                            // Centralise coordinates logic
+                            // 1. Build Vec3 array from x, y, z
+                            const coords: Vec3[] = [];
+                            for (let i = 0; i < n; i++) {
+                                const v = Object.assign([x[i], y[i], z[i]], { '@type': 'vec3' }) as Vec3;
+                                coords.push(v);
+                                if (i % d === 0) {
+                                    console.log(`Atom ${i}: (${type_symbol[i]}, ${v[0]}, ${v[1]}, ${v[2]})`);
+                                }
+                            }
+                            // 2. Compute centroid
+                            const centroid: Vec3 = computeCentroid(coords);
+                            console.log('Computed centroid:', centroid);
+                            // 3. Calculate new coordinates
+                            // Subtract centroid from each coordinate
+                            for (let i = 0; i < coords.length; i++) {
+                                newX[i] = coords[i][0] - centroid[0];
+                                newY[i] = coords[i][1] - centroid[1];
+                                newZ[i] = coords[i][2] - centroid[2];
+                                if (i % d === 0) {
+                                    console.log(`Centralised coordinates for atom ${i}: (${type_symbol[i]}, ${newX[i]}, ${newY[i]}, ${newZ[i]})`);
+                                }
+                            }
                         }
-                        // 4. Replace coordinates
+                        // Replace coordinates
                         frame.atomicConformation.x = newX;
                         frame.atomicConformation.y = newY;
                         frame.atomicConformation.z = newZ;

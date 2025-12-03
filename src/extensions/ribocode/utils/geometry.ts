@@ -3,8 +3,9 @@
  *
  * @author Andy Turner <agdturner@gmail.com>
  */
-import { Vec3, Mat4 } from '../../../mol-math/linear-algebra';
+import { Vec3 } from '../../../mol-math/linear-algebra';
 import { QCProt } from './qcprot';
+import Big from 'big.js';
 
 /**
  * Compute the centroid of a set of coordinates.
@@ -12,60 +13,83 @@ import { QCProt } from './qcprot';
  * @returns Centroid as Vec3
  */
 export function computeCentroid(coords: Vec3[]): Vec3 {
-    const sum = coords.reduce((acc, c) => {
-        const result = Vec3.zero();
-        return Vec3.add(result, acc, c);
-    }, Vec3.zero());
     const centroid = Vec3.zero();
-    return Vec3.scale(centroid, sum, 1 / coords.length);
+    for (let i = 0; i < coords.length; i++) {
+        centroid[0] += coords[i][0];
+        centroid[1] += coords[i][1];
+        centroid[2] += coords[i][2];
+    }
+    centroid[0] /= coords.length;
+    centroid[1] /= coords.length;
+    centroid[2] /= coords.length;
+    return centroid;
 }
 
 /**
- * Handles coordinate transformations for 3D datasets.
- * Centralizes coordinates on construction.
+ * Compute the centroid of a set of coordinates.
+ * @param coords Array of BigVec3 coordinates.
+ * @returns Centroid as Vec3
  */
-export class CoordinateTransformer {
-    private transformedCoords: Vec3[];
-
-    constructor(coords: Vec3[]) {
-        const centroid = computeCentroid(coords);
-        this.transformedCoords = coords.map(c => {
-            const result = Vec3.zero();
-            return Vec3.sub(result, c, centroid);
-        });
+export function computeBigCentroid(coords: Vec3[]): Vec3 {
+    let sumX = new Big(0), sumY = new Big(0), sumZ = new Big(0);
+    for (const v of coords) {
+        sumX = sumX.plus(v[0]);
+        sumY = sumY.plus(v[1]);
+        sumZ = sumZ.plus(v[2]);
     }
-
-    /**
-     * Translate coordinates by a given vector.
-     * @param v Translation vector
-     */
-    translate(v: Vec3): void {
-        this.transformedCoords = this.transformedCoords.map(c => {
-            const result = Vec3.zero();
-            return Vec3.add(result, c, v);
-        });
-    }
-
-    /**
-     * Rotate coordinates by a given rotation matrix.
-     * @param rotation Rotation matrix
-     */
-    rotate(rotation: Mat4): void {
-        this.transformedCoords = this.transformedCoords.map(c => {
-            const result = Vec3.zero();
-            return Vec3.transformMat4(result, c, rotation);
-        });
-    }
-
-    /**
-     * Get transformed coordinates for rendering.
-     * @returns Array of transformed Vec3 coordinates
-     */
-    getTransformedCoordinates(): Vec3[] {
-        return this.transformedCoords;
-    }
+    const len = new Big(coords.length);
+    const centroid = Vec3.zero();
+    centroid[0] = sumX.div(len).toNumber();
+    centroid[1] = sumY.div(len).toNumber();
+    centroid[2] = sumZ.div(len).toNumber();
+    return centroid;
 }
 
+/**
+ * Calculate rotated coordinates given a rotation matrix.
+ * @param rotmat The rotation matrix as a flat array of 9 numbers.
+ * @param x The x coordinates.
+ * @param y The y coordinates.
+ * @param z The z coordinates.
+ * @returns An object containing the rotated coordinates {xR, yR, zR}.
+ */
+export function getRotatedCoordinates(rotmat: number[], x: number[], y: number[], z: number[]): { xR: number[]; yR: number[]; zR: number[] } {
+    let xR: number[] = [];
+    let yR: number[] = [];
+    let zR: number[] = [];
+    for (let i = 0; i < x.length; i++) {
+        xR[i] = rotmat[0] * x[i] + rotmat[1] * y[i] + rotmat[2] * z[i];
+        yR[i] = rotmat[3] * x[i] + rotmat[4] * y[i] + rotmat[5] * z[i];
+        zR[i] = rotmat[6] * x[i] + rotmat[7] * y[i] + rotmat[8] * z[i];
+    }
+    return { xR, yR, zR };
+}
+
+/**
+ * Calculate rotated coordinates given a rotation matrix.
+ * @param rotmat The rotation matrix as a flat array of 9 numbers.
+ * @param x The x coordinates.
+ * @param y The y coordinates.
+ * @param z The z coordinates.
+ * @returns An object containing the rotated coordinates {xR, yR, zR}.
+ */
+export function getBigRotatedCoordinates(rotmat: number[], x: number[], y: number[], z: number[]): { xR: number[]; yR: number[]; zR: number[] } {
+    let xR: number[] = [];
+    let yR: number[] = [];
+    let zR: number[] = [];
+    for (let i = 0; i < x.length; i++) {
+        xR.push(new Big(rotmat[0]).times(x[i])
+            .plus(new Big(rotmat[1]).times(y[i]))
+            .plus(new Big(rotmat[2]).times(z[i])).toNumber());
+        yR.push(new Big(rotmat[3]).times(x[i])
+            .plus(new Big(rotmat[4]).times(y[i]))
+            .plus(new Big(rotmat[5]).times(z[i])).toNumber());
+        zR.push(new Big(rotmat[6]).times(x[i])
+            .plus(new Big(rotmat[7]).times(y[i]))
+            .plus(new Big(rotmat[8]).times(z[i])).toNumber());
+    }
+    return { xR, yR, zR };
+}
 /**
  * Align incoming dataset to existing dataset using centroid translation.
  * @param symbol_type Array of atom types of atoms to align
@@ -119,7 +143,7 @@ export function alignDataset(
                 const idx = newPhosphorusIndices[i];
                 coords.push(Vec3.create(newX[idx], newY[idx], newZ[idx]));
             }
-            const centroid = computeCentroid(coords);
+            const centroid: Vec3 = computeBigCentroid(coords);
             // 2. Calculate distances to centroid.
             const distances: { index: number; distance: number }[] = [];
             for (let i = 0; i < newCount; i++) {
@@ -131,7 +155,7 @@ export function alignDataset(
             // 3. Sort distances and select closest 'count' atoms.
             distances.sort((a, b) => a.distance - b.distance);
             const selectedIndices = distances.slice(0, count).map(d => d.index);
-            console.log(`Selected phosphorus atom indices for alignment: ${selectedIndices}`);
+            //console.log(`Selected phosphorus atom indices for alignment: ${selectedIndices}`);
             // 4. Update newX, newY, newZ to only include selected atoms.
             const filteredX: number[] = [];
             const filteredY: number[] = [];
@@ -143,8 +167,8 @@ export function alignDataset(
             }
             // 5. Create new aligned coordinates arrays.
             const qcprot = new QCProt(filteredX, filteredY, filteredZ, x, y, z);
-            const result = qcprot.getRotatedCoordinates();
-            return { alignedX: result.xR, alignedY: result.yR, alignedZ: result.zR };
+            const aligned = getBigRotatedCoordinates(qcprot.rotmat, x, y, z);
+            return { alignedX: aligned.xR, alignedY: aligned.yR, alignedZ: aligned.zR };
         } else {
             // Select the newCount closest phosphorus atoms to the centroid.
             const coords: Vec3[] = [];
@@ -152,7 +176,7 @@ export function alignDataset(
                 const idx = phosphorusIndices[i];
                 coords.push(Vec3.create(x[idx], y[idx], z[idx]));
             }
-            const centroid = computeCentroid(coords);
+            const centroid = computeBigCentroid(coords);
             // 2. Calculate distances to centroid.
             const distances: { index: number; distance: number }[] = [];
             for (let i = 0; i < count; i++) {
@@ -176,12 +200,12 @@ export function alignDataset(
             }
             // 5. Create new aligned coordinates arrays.
             const qcprot = new QCProt(newX, newY, newZ, filteredX, filteredY, filteredZ);
-            const result = qcprot.getRotatedCoordinates();
-            return { alignedX: result.xR, alignedY: result.yR, alignedZ: result.zR };               
+            const aligned = getBigRotatedCoordinates(qcprot.rotmat, x, y, z);
+            return { alignedX: aligned.xR, alignedY: aligned.yR, alignedZ: aligned.zR };
         }
     } else {
-            const qcprot = new QCProt(newX, newY, newZ, x, y, z);
-            const result = qcprot.getRotatedCoordinates();
-            return { alignedX: result.xR, alignedY: result.yR, alignedZ: result.zR };             
+        const qcprot = new QCProt(newX, newY, newZ, x, y, z);
+        const aligned = getBigRotatedCoordinates(qcprot.rotmat, x, y, z);
+        return { alignedX: aligned.xR, alignedY: aligned.yR, alignedZ: aligned.zR };
     }
 }
