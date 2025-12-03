@@ -393,7 +393,7 @@ export class QCProt {
         A[6] = 0.0;
         A[7] = 0.0;
         A[8] = 0.0;
-        if (this.weight == undefined) {
+        if (!this.weight) {
             for (let i = 0; i < this.len; i++) {
                 x1 = fx1[i];
                 y1 = fy1[i];
@@ -412,6 +412,10 @@ export class QCProt {
                 A[6] += (z1 * x2);
                 A[7] += (z1 * y2);
                 A[8] += (z1 * z2);
+            }
+            this.weight = [];
+            for (let i = 0; i < this.len; i++) {
+                this.weight.push(i + 1.0);
             }
         } else {
             for (let i = 0; i < this.len; i++) {
