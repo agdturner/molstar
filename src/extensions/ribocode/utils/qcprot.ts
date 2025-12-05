@@ -77,6 +77,17 @@ export class QCProt {
         this.y = y;
         this.z = z;
         this.len = newX.length;
+        //console.log('newX.length:', newX.length);
+        //console.log('newY.length:', newY.length);
+        //console.log('newZ.length:', newZ.length);
+        //console.log('x.length:', x.length);
+        //console.log('y.length:', y.length);
+        //console.log('z.length:', z.length);
+        if (this.len !== newY.length || this.len !== newZ.length ||
+            this.len !== x.length || this.len !== y.length || 
+            this.len !== z.length) {
+            throw new Error('Coordinate arrays must have the same length');
+        }
         let A: number[] = [];
         let E0: number = this.innerProduct(A);
         this.fastCalcRMSDAndRotation(A, E0, -1);

@@ -46,6 +46,20 @@ export function computeBigCentroid(coords: Vec3[]): Vec3 {
 }
 
 /**
+ * Compute the mean of an array of numbers using Big.js for precision.
+ * @param x Array of numbers
+ * @returns Mean as number
+ */
+export function computeBigMean(x: number[]) : number {
+    let sumX = new Big(0);
+    for (const xi of x) {
+        sumX = sumX.plus(xi);
+    }
+    const len = new Big(x.length);
+    return sumX.div(len).toNumber();
+}
+
+/**
  * Calculate rotated coordinates given a rotation matrix.
  * @param rotmat The rotation matrix as a flat array of 9 numbers.
  * @param x The x coordinates.
@@ -90,6 +104,7 @@ export function getBigRotatedCoordinates(rotmat: number[], x: number[], y: numbe
     }
     return { xR, yR, zR };
 }
+
 /**
  * Align incoming dataset to existing dataset using centroid translation.
  * @param symbol_type Array of atom types of atoms to align
@@ -113,99 +128,175 @@ export function alignDataset(
     z: number[]
 ): { alignedX: number[]; alignedY: number[]; alignedZ: number[] } {
     // Implementation will go here
-    // Get indices of phosporous atoms
-    const newPhosphorusIndices: number[] = [];
+    // Get indices of selected atoms
+    const newSIndices: number[] = [];
     let newCount: number = 0;
+    // Change this to the desired atom types for alignment
+    const selectedAtomTypes = { 'P': true };
+    //const selectedAtomTypes = { 'P': true, 'S': true };
     for (let i = 0; i < symbol_type.length; i++) {
-        if (symbol_type[i] === 'P') {
-            newPhosphorusIndices.push(i);
-            //console.log(`Phosphorus atom found at index ${i}`);
+        if (selectedAtomTypes.hasOwnProperty(symbol_type[i])) {
+            newSIndices.push(i);
+            //console.log(`Selected atom found at index ${i}`);
             newCount++;
         }
     }
-    console.log(`Total phosphorus atoms found in data to align: ${newCount}`);
-    const phosphorusIndices: number[] = [];
+    console.log(`Total selected atoms found in data to align: ${newCount}`);
+    const sIndices: number[] = [];
     let count: number = 0;
-    for (let i = 0; i < symbol_type.length; i++) {
-        if (type[i] === 'P') {
-            phosphorusIndices.push(i);
-            //console.log(`Phosphorus atom found at index ${i}`);
+    for (let i = 0; i < type.length; i++) {
+        if (selectedAtomTypes.hasOwnProperty(type[i])) {
+            sIndices.push(i);
+            //console.log(`Selected atom found at index ${i}`);
             count++;
         }
     }
-    console.log(`Total phosphorus atoms found in data to align from: ${count}`);
+    console.log(`Total selected atoms found in data to align from: ${count}`);
+    // Create arrays of selected coordinates
+    const newXS: number[] = [];
+    const newYS: number[] = [];
+    const newZS: number[] = [];
+    for (const idx of newSIndices) {
+        newXS.push(newX[idx]);
+        newYS.push(newY[idx]);
+        newZS.push(newZ[idx]);
+    }
+    const xS: number[] = [];
+    const yS: number[] = [];
+    const zS: number[] = [];
+    for (const idx of sIndices) {
+        xS.push(x[idx]);
+        yS.push(y[idx]);
+        zS.push(z[idx]);
+    }
     if (newCount !== count) {
+        const filteredXS: number[] = [];
+        const filteredYS: number[] = [];
+        const filteredZS: number[] = [];
         if (newCount > count) {
-            // Select the count closest new phosphorus atoms to the centroid.
-            // 1. Calculate centroid.
-            const coords: Vec3[] = [];
-            for (let i = 0; i < newCount; i++) {
-                const idx = newPhosphorusIndices[i];
-                coords.push(Vec3.create(newX[idx], newY[idx], newZ[idx]));
+            // // Select the count closest new selected atoms to the origin.
+            // // 1. Calculate distances to origin of new selected atoms.
+            // const distances: { index: number; distance: number }[] = [];
+            // for (let i = 0; i < newCount; i++) {
+            //     const distance = newXS[i] * newXS[i] + newYS[i] * newYS[i] + newZS[i] * newZS[i];
+            //     distances.push({ index: i, distance: distance });
+            // }
+            // // 2. Sort distances and select closest count atoms.
+            // //distances.sort((a, b) => a.distance - b.distance);
+            // distances.sort((a, b) => b.distance - a.distance); // furthest
+            // const selectedIndices = distances.slice(0, count).map(d => d.index);
+            // //console.log(`Selected phosphorus atom indices for alignment: ${selectedIndices}`);
+            // // 3. Add to filtered.
+            // for (const idx of selectedIndices) {
+            //     filteredXS.push(newXS[idx]);
+            //     filteredYS.push(newYS[idx]);
+            //     filteredZS.push(newZS[idx]);
+            // }
+            // console.log(`Filtered selected atoms to ${filteredXS.length} for alignment.`);
+            
+            // Try just the first count atoms
+            for (let i = 0; i < count; i++) {
+                filteredXS.push(newXS[i]);
+                filteredYS.push(newYS[i]);
+                filteredZS.push(newZS[i]);
             }
-            const centroid: Vec3 = computeBigCentroid(coords);
-            // 2. Calculate distances to centroid.
-            const distances: { index: number; distance: number }[] = [];
-            for (let i = 0; i < newCount; i++) {
-                const idx = newPhosphorusIndices[i];
-                const atomCoord = Vec3.create(newX[idx], newY[idx], newZ[idx]);
-                const distance = Vec3.distance(atomCoord, centroid);
-                distances.push({ index: idx, distance: distance });
+
+            // 4. Recentralise filtered.
+            const filteredXMean = computeBigMean(filteredXS);
+            const filteredYMean = computeBigMean(filteredYS);
+            const filteredZMean = computeBigMean(filteredZS);
+            for (let i = 0; i < count; i++) {
+                filteredXS[i] -= filteredXMean;
+                filteredYS[i] -= filteredYMean;
+                filteredZS[i] -= filteredZMean;
             }
-            // 3. Sort distances and select closest 'count' atoms.
-            distances.sort((a, b) => a.distance - b.distance);
-            const selectedIndices = distances.slice(0, count).map(d => d.index);
-            //console.log(`Selected phosphorus atom indices for alignment: ${selectedIndices}`);
-            // 4. Update newX, newY, newZ to only include selected atoms.
-            const filteredX: number[] = [];
-            const filteredY: number[] = [];
-            const filteredZ: number[] = [];
-            for (const idx of selectedIndices) {
-                filteredX.push(newX[idx]);
-                filteredY.push(newY[idx]);
-                filteredZ.push(newZ[idx]);
+            // 5. Recentralise.
+            const xSMean = computeBigMean(xS);
+            const ySMean = computeBigMean(yS);
+            const zSMean = computeBigMean(zS);
+            for (let i = 0; i < count; i++) {
+                xS[i] -= xSMean;
+                yS[i] -= ySMean;
+                zS[i] -= zSMean;
             }
-            // 5. Create new aligned coordinates arrays.
-            const qcprot = new QCProt(filteredX, filteredY, filteredZ, x, y, z);
-            const aligned = getBigRotatedCoordinates(qcprot.rotmat, x, y, z);
+            console.log(`Recentralised ${xS.length} atoms for alignment.`); 
+            // 6. Create new aligned coordinates arrays.
+            const qcprot = new QCProt(filteredXS, filteredYS, filteredZS, xS, yS, zS);
+            const aligned = getRotatedCoordinates(qcprot.rotmat, newX, newY, newZ);
             return { alignedX: aligned.xR, alignedY: aligned.yR, alignedZ: aligned.zR };
         } else {
-            // Select the newCount closest phosphorus atoms to the centroid.
-            const coords: Vec3[] = [];
-            for (let i = 0; i < count; i++) {
-                const idx = phosphorusIndices[i];
-                coords.push(Vec3.create(x[idx], y[idx], z[idx]));
+            // // Select the newCount closest selected atoms to the centroid.
+            // // 1. Calculate distances to origin of selected atoms.
+            // const distances: { index: number; distance: number }[] = [];
+            // for (let i = 0; i < count; i++) {
+            //     const distance = xS[i] * xS[i] + yS[i] * yS[i] + zS[i] * zS[i];
+            //     distances.push({ index: i, distance: distance });
+            // }
+            // // 2. Sort distances and select closest count atoms.
+            // //distances.sort((a, b) => a.distance - b.distance);
+            // distances.sort((a, b) => b.distance - a.distance); // furthest
+            // const selectedIndices = distances.slice(0, newCount).map(d => d.index);
+            // //console.log(`Selected selected atom indices for alignment: ${selectedIndices}`);
+            // // 3. Add to filtered.
+            // for (const idx of selectedIndices) {
+            //     filteredXS.push(x[idx]);
+            //     filteredYS.push(y[idx]);
+            //     filteredZS.push(z[idx]);
+            // }
+            // console.log(`Filtered selected atoms to ${filteredXS.length} for alignment.`);
+            
+            // Try just the first count atoms
+            for (let i = 0; i < newCount; i++) {
+                filteredXS.push(newXS[i]);
+                filteredYS.push(newYS[i]);
+                filteredZS.push(newZS[i]);
             }
-            const centroid = computeBigCentroid(coords);
-            // 2. Calculate distances to centroid.
-            const distances: { index: number; distance: number }[] = [];
-            for (let i = 0; i < count; i++) {
-                const idx = phosphorusIndices[i];
-                const atomCoord = Vec3.create(x[idx], y[idx], z[idx]);
-                const distance = Vec3.distance(atomCoord, centroid);
-                distances.push({ index: idx, distance: distance });
+            
+            // 4. Recentralise filtered.
+            const filteredXMean = computeBigMean(filteredXS);
+            const filteredYMean = computeBigMean(filteredYS);
+            const filteredZMean = computeBigMean(filteredZS);
+            for (let i = 0; i < newCount; i++) {
+                filteredXS[i] -= filteredXMean;
+                filteredYS[i] -= filteredYMean;
+                filteredZS[i] -= filteredZMean;
             }
-            // 3. Sort distances and select closest 'newCount' atoms.
-            distances.sort((a, b) => a.distance - b.distance);
-            const selectedIndices = distances.slice(0, newCount).map(d => d.index);
-            console.log(`Selected phosphorus atom indices for alignment: ${selectedIndices}`);
-            // 4. Update x, y, z to only include selected atoms.
-            const filteredX: number[] = [];
-            const filteredY: number[] = [];
-            const filteredZ: number[] = [];
-            for (const idx of selectedIndices) {
-                filteredX.push(x[idx]);
-                filteredY.push(y[idx]);
-                filteredZ.push(z[idx]);
+            // 5. Recentralise.
+            const newXPMean = computeBigMean(newXS);
+            const newYPMean = computeBigMean(newYS);
+            const newZPMean = computeBigMean(newZS);
+            for (let i = 0; i < newCount; i++) {
+                newXS[i] -= newXPMean;
+                newYS[i] -= newYPMean;
+                newZS[i] -= newZPMean;
             }
+            console.log(`Recentralised ${newXS.length} atoms for alignment.`);
             // 5. Create new aligned coordinates arrays.
-            const qcprot = new QCProt(newX, newY, newZ, filteredX, filteredY, filteredZ);
-            const aligned = getBigRotatedCoordinates(qcprot.rotmat, x, y, z);
+            const qcprot = new QCProt(newXS, newYS, newZS, filteredXS, filteredYS, filteredZS);
+            //const aligned = getBigRotatedCoordinates(qcprot.rotmat, newX, newY, newZ);
+            const aligned = getRotatedCoordinates(qcprot.rotmat, newX, newY, newZ);
             return { alignedX: aligned.xR, alignedY: aligned.yR, alignedZ: aligned.zR };
         }
     } else {
-        const qcprot = new QCProt(newX, newY, newZ, x, y, z);
-        const aligned = getBigRotatedCoordinates(qcprot.rotmat, x, y, z);
+        // Recentralise.
+        const newXMean = computeBigMean(newXS);
+        const newYMean = computeBigMean(newYS);
+        const newZMean = computeBigMean(newZS);
+        for (let i = 0; i < newCount; i++) {
+            newXS[i] -= newXMean;
+            newYS[i] -= newYMean;
+            newZS[i] -= newZMean;
+        }
+        const xSMean = computeBigMean(xS);
+        const ySMean = computeBigMean(yS);
+        const zSMean = computeBigMean(zS);
+        for (let i = 0; i < count; i++) {
+            xS[i] -= xSMean;
+            yS[i] -= ySMean;
+            zS[i] -= zSMean;
+        }
+        const qcprot = new QCProt(newXS, newYS, newZS, xS, yS, zS);
+        const aligned = getRotatedCoordinates(qcprot.rotmat, newX, newY, newZ);
         return { alignedX: aligned.xR, alignedY: aligned.yR, alignedZ: aligned.zR };
     }
 }
