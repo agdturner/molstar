@@ -127,7 +127,8 @@ export function alignDataset(
     y: number[],
     z: number[]
 ): { alignedX: number[]; alignedY: number[]; alignedZ: number[] } {
-    // Implementation will go here
+    const nAtomsNew = newX.length;
+    //const nAtoms = x.length;
     // Get indices of selected atoms
     const newSIndices: number[] = [];
     let newCount: number = 0;
@@ -174,27 +175,27 @@ export function alignDataset(
         const filteredYS: number[] = [];
         const filteredZS: number[] = [];
         if (newCount > count) {
-            // // Select the count closest new selected atoms to the origin.
+            // // Select the count closest new selected types of atoms to the origin.
             // // 1. Calculate distances to origin of new selected atoms.
             // const distances: { index: number; distance: number }[] = [];
             // for (let i = 0; i < newCount; i++) {
             //     const distance = newXS[i] * newXS[i] + newYS[i] * newYS[i] + newZS[i] * newZS[i];
             //     distances.push({ index: i, distance: distance });
             // }
-            // // 2. Sort distances and select closest count atoms.
-            // //distances.sort((a, b) => a.distance - b.distance);
-            // distances.sort((a, b) => b.distance - a.distance); // furthest
+            // // 2. Sort distances and select closest/furthest count.
+            // distances.sort((a, b) => a.distance - b.distance); //closest
+            // //distances.sort((a, b) => b.distance - a.distance); // furthest
             // const selectedIndices = distances.slice(0, count).map(d => d.index);
-            // //console.log(`Selected phosphorus atom indices for alignment: ${selectedIndices}`);
+            // //console.log(`Selected types of atom indices for alignment: ${selectedIndices}`);
             // // 3. Add to filtered.
             // for (const idx of selectedIndices) {
             //     filteredXS.push(newXS[idx]);
             //     filteredYS.push(newYS[idx]);
             //     filteredZS.push(newZS[idx]);
             // }
-            // console.log(`Filtered selected atoms to ${filteredXS.length} for alignment.`);
+            // console.log(`Filtered selected types of atoms to ${filteredXS.length} for alignment.`);
             
-            // Try just the first count atoms
+            // Simply select the first count atoms.
             for (let i = 0; i < count; i++) {
                 filteredXS.push(newXS[i]);
                 filteredYS.push(newYS[i]);
@@ -222,36 +223,48 @@ export function alignDataset(
             console.log(`Recentralised ${xS.length} atoms for alignment.`); 
             // 6. Create new aligned coordinates arrays.
             const qcprot = new QCProt(filteredXS, filteredYS, filteredZS, xS, yS, zS);
+            // Recentre new coordinates.
+            for (let i = 0; i < nAtomsNew; i++) {
+                newX[i] -= filteredXMean;
+                newY[i] -= filteredYMean;
+                newZ[i] -= filteredZMean;
+            }
             const aligned = getRotatedCoordinates(qcprot.rotmat, newX, newY, newZ);
+            // Recentre new coordinates.
+            for (let i = 0; i < nAtomsNew; i++) {
+                aligned.xR[i] += filteredXMean;
+                aligned.yR[i] += filteredYMean;
+                aligned.zR[i] += filteredZMean;
+            }
             return { alignedX: aligned.xR, alignedY: aligned.yR, alignedZ: aligned.zR };
         } else {
-            // // Select the newCount closest selected atoms to the centroid.
-            // // 1. Calculate distances to origin of selected atoms.
+            // // Select the newCount closest selected types of atoms to the centroid.
+            // // 1. Calculate distances to origin of selected types of atoms.
             // const distances: { index: number; distance: number }[] = [];
             // for (let i = 0; i < count; i++) {
             //     const distance = xS[i] * xS[i] + yS[i] * yS[i] + zS[i] * zS[i];
             //     distances.push({ index: i, distance: distance });
             // }
-            // // 2. Sort distances and select closest count atoms.
-            // //distances.sort((a, b) => a.distance - b.distance);
+            // // 2. Sort distances and select closest/furthest newCount.
+            // //distances.sort((a, b) => a.distance - b.distance); // closest
             // distances.sort((a, b) => b.distance - a.distance); // furthest
             // const selectedIndices = distances.slice(0, newCount).map(d => d.index);
             // //console.log(`Selected selected atom indices for alignment: ${selectedIndices}`);
             // // 3. Add to filtered.
             // for (const idx of selectedIndices) {
-            //     filteredXS.push(x[idx]);
-            //     filteredYS.push(y[idx]);
-            //     filteredZS.push(z[idx]);
+            //     filteredXS.push(xS[idx]);
+            //     filteredYS.push(yS[idx]);
+            //     filteredZS.push(zS[idx]);
             // }
-            // console.log(`Filtered selected atoms to ${filteredXS.length} for alignment.`);
+            // console.log(`Filtered selected types of atoms to ${filteredXS.length} for alignment.`);
             
-            // Try just the first count atoms
+            // Simply select the first newCount atoms.
             for (let i = 0; i < newCount; i++) {
-                filteredXS.push(newXS[i]);
-                filteredYS.push(newYS[i]);
-                filteredZS.push(newZS[i]);
+                filteredXS.push(xS[i]);
+                filteredYS.push(yS[i]);
+                filteredZS.push(zS[i]);
             }
-            
+
             // 4. Recentralise filtered.
             const filteredXMean = computeBigMean(filteredXS);
             const filteredYMean = computeBigMean(filteredYS);
@@ -273,8 +286,20 @@ export function alignDataset(
             console.log(`Recentralised ${newXS.length} atoms for alignment.`);
             // 5. Create new aligned coordinates arrays.
             const qcprot = new QCProt(newXS, newYS, newZS, filteredXS, filteredYS, filteredZS);
+            // Recentre new coordinates.
+            for (let i = 0; i < nAtomsNew; i++) {
+                newX[i] += newXPMean;
+                newY[i] += newYPMean;
+                newZ[i] += newZPMean;
+            }
             //const aligned = getBigRotatedCoordinates(qcprot.rotmat, newX, newY, newZ);
             const aligned = getRotatedCoordinates(qcprot.rotmat, newX, newY, newZ);
+            // Recentre new coordinates.
+            for (let i = 0; i < nAtomsNew; i++) {
+                aligned.xR[i] -= newXPMean;
+                aligned.yR[i] -= newYPMean;
+                aligned.zR[i] -= newZPMean;
+            }
             return { alignedX: aligned.xR, alignedY: aligned.yR, alignedZ: aligned.zR };
         }
     } else {

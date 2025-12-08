@@ -1,16 +1,17 @@
 //import { Viewer } from '../../../apps/viewer';
-import { Asset } from '../../../mol-util/assets';
-import { PluginUIContext } from '../../../mol-plugin-ui/context';
-import { MmcifParseParams, MmcifProvider } from '../../../mol-plugin-state/formats/trajectory';
-import { PluginStateObject } from '../../../mol-plugin-state/objects';
-import { PluginContext } from '../../../mol-plugin/context';
-import { StateObjectRef } from '../../../mol-state';
-import { Vec3 } from '../../../mol-math/linear-algebra';
+import { Asset } from '../../mol-util/assets';
+import { PluginUIContext } from '../../mol-plugin-ui/context';
+import { RibocodeMmcifParseParams, RibocodeMmcifProvider } from './mol-plugin-state/formats/trajectory';
+import { PluginStateObject } from '../../mol-plugin-state/objects';
+import { PluginContext } from '../../mol-plugin/context';
+import { StateObjectRef } from '../../mol-state';
+import { Vec3 } from '../../mol-math/linear-algebra';
 //import { ElementSymbol } from '../../../mol-model/structure/model/types';
 
 // Function to load a molecule file.
 export async function loadMoleculeFileToViewer(
-    plugin: PluginUIContext, file: Asset.File, centralise: boolean, alignment?: any) {
+    plugin: PluginUIContext, file: Asset.File, doGetAlignmentData: boolean,
+    centralise: boolean, alignment?: any) {
     console.log('Loading molecule file into viewer:', file.name);
     const data = await plugin.builders.data.readFile(
         { file, label: file.name },
@@ -22,12 +23,12 @@ export async function loadMoleculeFileToViewer(
     }
     console.log('File read successfully:', data);
     const myProvider = {
-        ...MmcifProvider,
+        ...RibocodeMmcifProvider,
         parse: async (
             plugin: PluginContext,
             data: StateObjectRef<PluginStateObject.Data.String | PluginStateObject.Data.Binary>,
-            params: MmcifParseParams | undefined
-        ) => MmcifProvider.parse(plugin, data, 
+            params: RibocodeMmcifParseParams | undefined
+        ) => RibocodeMmcifProvider.parse(plugin, data, 
             { ...params, centraliseCoordinates: centralise, alignmentData: alignment })
     };
     const trajectory = await plugin.builders.structure.parseTrajectory(data.data, myProvider);
@@ -36,7 +37,11 @@ export async function loadMoleculeFileToViewer(
 
     await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'default');
     //return {structure};
-    const alignmentData = await getAlignmentData(plugin, trajectory);
+
+    let alignmentData;
+    if (doGetAlignmentData) {
+        alignmentData = await getAlignmentData(plugin, trajectory);
+    }
     return {structure, alignmentData};
 }
 
