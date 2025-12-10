@@ -42,7 +42,8 @@ export async function loadMoleculeFileToViewer(
     if (doGetAlignmentData) {
         alignmentData = await getAlignmentData(plugin, trajectory);
     }
-    return {structure, alignmentData};
+    const name = model.data?.label || file.name;
+    return {structure, alignmentData, name};
 }
 
 // Function to get alignment data for a molecule. This currently includes the type and location of all atoms in the structure.
