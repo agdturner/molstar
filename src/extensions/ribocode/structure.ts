@@ -32,18 +32,19 @@ export async function loadMoleculeFileToViewer(
             { ...params, centraliseCoordinates: centralise, alignmentData: alignment })
     };
     const trajectory = await plugin.builders.structure.parseTrajectory(data.data, myProvider);
-    const model = await plugin.builders.structure.createModel(trajectory);
-    const structure = await plugin.builders.structure.createStructure(model);
-
-    await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'default');
-    //return {structure};
-
+    //const model = await plugin.builders.structure.createModel(trajectory);
+    //const structure = await plugin.builders.structure.createStructure(model);
+    //await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'default');
+    ////return {structure};
+    const presetResult = await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'default');
     let alignmentData;
     if (doGetAlignmentData) {
         alignmentData = await getAlignmentData(plugin, trajectory);
     }
-    const name = model.data?.label || file.name;
-    return {structure, alignmentData, name};
+    //const name = model.data?.label || file.name;
+    //return {structure, alignmentData, name};
+    const name = presetResult?.model.data?.label || file.name;
+    return {structure: presetResult?.structure, alignmentData, name};
 }
 
 // Function to get alignment data for a molecule. This currently includes the type and location of all atoms in the structure.

@@ -30,7 +30,8 @@ import { legendFor } from './legend';
 import { LineGraphComponent } from './line-graph/line-graph-component';
 import { Slider, Slider2 } from './slider';
 import { getColorGradient, getColorGradientBanded } from '../../mol-util/color/utils';
-import { Data, SimpleData, readFile, readJSONFile } from '../../extensions/ribocode/colors';
+import { handleColorFileInputChange } from '../../extensions/ribocode/colors';
+//import { Data, SimpleData, readFile, readJSONFile } from '../../extensions/ribocode/colors';
 
 export type ParameterControlsCategoryFilter = string | null | (string | null)[]
 
@@ -1407,7 +1408,11 @@ class ObjectListItem extends React.PureComponent<ObjectListItemProps, { isExpand
     }
 }
 
-export class ObjectListControl extends React.PureComponent<ParamProps<PD.ObjectList>, { isExpanded: boolean }> {
+//export class ObjectListControl extends React.PureComponent<
+//ParamProps<PD.ObjectList>, { isExpanded: boolean }> {
+export class ObjectListControl extends React.PureComponent<
+    ParamProps<PD.ObjectList> & { onFileInputChange?: (e: React.ChangeEvent<HTMLInputElement>) => void },
+    { isExpanded: boolean }> {
     state = { isExpanded: false };
 
     constructor(props: ParamProps<PD.ObjectList>) {
@@ -1416,49 +1421,13 @@ export class ObjectListControl extends React.PureComponent<ParamProps<PD.ObjectL
         this.handleFileInputChange = this.handleFileInputChange.bind(this);
     }
 
-    async handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
-        const file = event.target.files?.[0];
-        if (!file) return;
-        try {
-            // Read and parse the file to populate colorMap.
-            const colorMap = new Map<string, string>();
-            const fileExtension = file.name.split('.').pop()?.toLowerCase();
-            if (fileExtension === 'json') {
-                let data: SimpleData[] = await readJSONFile(file);
-                data.forEach(x => {
-                    colorMap.set(x.pdb_chain, x.color);
-                });
-                console.log('Simple data:', data);
-            } else {
-                let data: Data[] = await readFile(file);
-                data.forEach(x => {
-                    colorMap.set(x.pdb_chain, x.color);
-                });
-                //console.log('Data:', data);
-            }
-            //console.log('Color map:', colorMap);
-            // Transform the colorMap into an array and save to JSON file
-            const colorMapArray = Array.from(colorMap.entries()).map(([pdb_chain, color]) => ({
-                pdb_chain,
-                color: color
-            }));
-            const output = JSON.stringify(colorMapArray, null, 2);
-            const blob = new Blob([output], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'color_list.json';
-            a.click();
-            URL.revokeObjectURL(url);
-            // Transform the map into an array of objects
-            const colorList = Array.from(colorMap.entries()).map(([asym_id, color]) => ({
-                asym_id,
-                color: Color.fromHexStyle(color)
-            }));
-            // Update the state with the new colors
-            this.props.onChange({ name: this.props.name, param: this.props.param, value: colorList });
-        } catch (error) {
-            console.error('Error reading color file:', error);
+    handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+        if (this.props.onFileInputChange) {
+            this.props.onFileInputChange(event);
+        } else {
+            handleColorFileInputChange(event, (colorList) => {
+                this.props.onChange({ name: this.props.name, param: this.props.param, value: colorList });
+            });
         }
     }
     
