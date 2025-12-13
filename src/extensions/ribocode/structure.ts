@@ -3,15 +3,30 @@ import { Asset } from '../../mol-util/assets';
 import { PluginUIContext } from '../../mol-plugin-ui/context';
 import { RibocodeMmcifParseParams, RibocodeMmcifProvider } from './mol-plugin-state/formats/trajectory';
 import { PluginStateObject } from '../../mol-plugin-state/objects';
+//import { StateObjectSelector } from 'molstar/lib/mol-state'; 
 import { PluginContext } from '../../mol-plugin/context';
 import { StateObjectRef } from '../../mol-state';
 import { Vec3 } from '../../mol-math/linear-algebra';
 //import { ElementSymbol } from '../../../mol-model/structure/model/types';
 
+export type PresetResult = Awaited<
+    ReturnType<PluginUIContext['builders']['structure']['hierarchy']['applyPreset']>
+>;
+
+export interface LoadMoleculeFileToViewerResult {
+    presetResult: PresetResult;
+    alignmentData: any | undefined;
+    name: string;
+}
+
 // Function to load a molecule file.
 export async function loadMoleculeFileToViewer(
-    plugin: PluginUIContext, file: Asset.File, doGetAlignmentData: boolean,
-    centralise: boolean, alignment?: any) {
+    plugin: PluginUIContext,
+    file: Asset.File,
+    doGetAlignmentData: boolean,
+    centralise: boolean,
+    alignment?: any
+): Promise<LoadMoleculeFileToViewerResult | undefined> {
     console.log('Loading molecule file into viewer:', file.name);
     const data = await plugin.builders.data.readFile(
         { file, label: file.name },
@@ -44,7 +59,7 @@ export async function loadMoleculeFileToViewer(
     //const name = model.data?.label || file.name;
     //return {structure, alignmentData, name};
     const name = presetResult?.model.data?.label || file.name;
-    return {structure: presetResult?.structure, alignmentData, name};
+    return {presetResult: presetResult, alignmentData, name};
 }
 
 // Function to get alignment data for a molecule. This currently includes the type and location of all atoms in the structure.
