@@ -274,7 +274,7 @@ export function alignDatasetsGeneral<T extends Record<string, any>>(
         const qcprot = new QCProt(newXS, newYS, newZS, xS, yS, zS);
         rotmat = qcprot.rotmat;
         const aligned = getRotatedCoordinates(qcprot.rotmat, fullX, fullY, fullZ);
-        return { alignedX: aligned.xR, alignedY: aligned.yR, alignedZ: aligned.zR, rotmat, centroidReference: newCentroid, centroid: centroid };
+        return { alignedX: aligned.xR, alignedY: aligned.yR, alignedZ: aligned.zR, rotmat, centroidReference: centroid, centroid: newCentroid };
     }
 }
 
